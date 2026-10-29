@@ -7,19 +7,19 @@
   --bg:#ECEFF2; --surface:#FFFFFF; --surface-2:#F5F7F9; --ink:#121C26; --muted:#5B6A78; --line:#D8DEE4;
   --accent:#1B4FD6; --accent-ink:#FFFFFF; --accent-soft:#E3EAFB;
   --ok:#17935B; --ok-soft:#DDF3E8; --warn:#C27800; --warn-soft:#FBEBCB; --crit:#D1352B; --crit-soft:#FADDD9; --idle:#8896A3; --idle-soft:#E6EAEE;
-  --plan:#8EA3D6; --rail:#0E1822; --rail-ink:#C9D4DE; --rail-dim:#7D8D9B; --rail-active:#1C2B39; --shadow:0 1px 2px rgba(15,25,35,.06),0 6px 20px rgba(15,25,35,.06);
+  --plan:#8EA3D6; --c1:#1B4FD6; --c2:#C27800; --c3:#17935B; --c4:#8A4FD6; --rail:#0E1822; --rail-ink:#C9D4DE; --rail-dim:#7D8D9B; --rail-active:#1C2B39; --shadow:0 1px 2px rgba(15,25,35,.06),0 6px 20px rgba(15,25,35,.06);
   --f-display:'Barlow Condensed','Arial Narrow',sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0B131A; --surface:#121D27; --surface-2:#182531; --ink:#E7EDF2; --muted:#93A3B1; --line:#25343F;
   --accent:#6C93FF; --accent-ink:#07142E; --accent-soft:#1B2B4F;
   --ok:#3CC384; --ok-soft:#14352A; --warn:#F0AE3A; --warn-soft:#3A2D12; --crit:#F2685D; --crit-soft:#411D1B; --idle:#7F8E9B; --idle-soft:#202D38;
-  --plan:#4A5F92; --rail:#070E14; --rail-active:#15222D; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3); color-scheme:dark}}
+  --plan:#4A5F92; --c1:#6C93FF; --c2:#F0AE3A; --c3:#3CC384; --c4:#B28CFF; --rail:#070E14; --rail-active:#15222D; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0B131A; --surface:#121D27; --surface-2:#182531; --ink:#E7EDF2; --muted:#93A3B1; --line:#25343F;
   --accent:#6C93FF; --accent-ink:#07142E; --accent-soft:#1B2B4F;
   --ok:#3CC384; --ok-soft:#14352A; --warn:#F0AE3A; --warn-soft:#3A2D12; --crit:#F2685D; --crit-soft:#411D1B; --idle:#7F8E9B; --idle-soft:#202D38;
-  --plan:#4A5F92; --rail:#070E14; --rail-active:#15222D; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3); color-scheme:dark}
+  --plan:#4A5F92; --c1:#6C93FF; --c2:#F0AE3A; --c3:#3CC384; --c4:#B28CFF; --rail:#070E14; --rail-active:#15222D; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3); color-scheme:dark}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body);margin:0}
@@ -121,6 +121,7 @@ h1,h2,h3{margin:0;font-family:var(--f-display);font-weight:600;letter-spacing:.0
 .chart svg{width:100%;height:auto;display:block}
 .chart text{fill:var(--muted);font:11px var(--f-mono)}
 .chart .grid-l{stroke:var(--line);stroke-width:1}
+.chart .tick-x{fill:var(--muted)}
 .chart .b-un{fill:var(--crit)} .chart .b-pl{fill:var(--plan)}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
@@ -131,6 +132,8 @@ table{border-collapse:collapse;width:100%;min-width:640px}
 th{text-align:left;font:500 11px var(--f-body);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2)}
 td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:0}
+tr.tot td{font-weight:600;background:var(--surface-2)}
+tr.dim td{color:var(--muted)}
 tbody tr.click{cursor:pointer} tbody tr.click:hover{background:var(--surface-2)}
 td .sub{color:var(--muted);font-size:12px}
 td.r,th.r{text-align:right}
@@ -323,7 +326,7 @@ function seed(){
   PARTS0.forEach((p,i)=>S.parts.push({id:'P'+(i+1),code:p[0],pn:p[1],name:p[2],brand:p[3],cat:p[4],serialized:!!p[5],repairable:!!p[6],cost:p[7],stock:p[8],min:p[9],reorder:p[10],max:p[11],loc:p[12],lead:p[13],supplier:p[14],compat:p[15][0]==='*'?MACH0.map(m=>m[0]):p[15]}));
   const partsFor=(mid,cat)=>S.parts.filter(p=>p.cat===cat&&p.compat.includes(mid)&&!p.serialized);
   let n=0;
-  for(let d=75;d>=1;d--){
+  for(let d=730;d>=1;d--){
     S.machines.forEach(m=>{
       if(r()<.085*m.w){
         const cause=UNPLANNED[Math.floor(r()*UNPLANNED.length)];
@@ -364,6 +367,12 @@ function seed(){
    {id:'PO-2026-094',part:P('EL-0033'),supplier:'ABB Industrial Solutions',qty:2,recv:0,unit:640500,date:ago(6),eta:ago(-70),status:'Approved'},
    {id:'PO-2026-097',part:P('EL-0012'),supplier:'SICK Sensor Intelligence',qty:2,recv:0,unit:544500,date:ago(1),eta:ago(-45),status:'Requested'},
    {id:'PO-2026-072',part:P('ME-0112'),supplier:'Keratech Italy',qty:15,recv:15,unit:148500,date:ago(95),eta:ago(40),status:'Received'}];
+  /* two years of purchasing and repair history for the yearly and monthly reports */
+  const seq={};const hist=[['EL-0045',20],['ME-0088',30],['PN-0021',40],['ME-0131',12],['EL-0057',8],['ME-0112',10],['ME-0140',12],['PN-0034',6],['EL-0101',4]];
+  for(let m=24;m>=2;m--){const k=1+Math.floor(r()*2);for(let j=0;j<k;j++){const h=hist[Math.floor(r()*hist.length)],pt=S.parts.find(x=>x.code===h[0]),d=ago(m*30.4-r()*20),y=new Date(d).getFullYear();seq[y]=(seq[y]||10)+1;const q=Math.max(1,Math.round(h[1]*(0.6+r()*0.8))),id='PO-'+y+'-'+String(seq[y]).padStart(3,'0');
+    S.pos.push({id,part:pt.id,supplier:pt.supplier,qty:q,recv:q,unit:pt.cost,date:d,eta:d+pt.lead*DAY,status:'Received'});S.txns.push({id:newId('tx'),t:d+pt.lead*DAY*0.9,partId:pt.id,type:'Purchase',qty:q,machine:'',ref:id,by:'Stores'})}}
+  [['A1',640,68000,'Local'],['A4',500,96000,'Local'],['A6',380,54000,'Local'],['A7',300,310000,'Abroad'],['A1',210,72000,'Local'],['A6',120,61000,'Local']].forEach((h,i)=>{const a=S.assets.find(x=>x.id===h[0]);
+    S.repairs.push({id:'R'+(5+i),asset:h[0],type:h[3],repairer:h[3]==='Abroad'?'SICK Central Service':'Colombo Drives Service',country:h[3]==='Abroad'?'Germany':'Sri Lanka',sent:ago(h[1]),expected:ago(h[1]-28),costLKR:h[2],ref:'',fault:'Scheduled overhaul and testing',status:'Returned',returned:ago(h[1]-26)})});
   return S;
 }
 
@@ -373,7 +382,7 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
@@ -410,6 +419,7 @@ const statusBadge=(label,cls)=>`<span class="chip ${cls}">${esc(label)}</span>`;
 /* ---------- icons ---------- */
 const IC={
  overview:'<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
+ reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
  downtime:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
  parts:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
  machines:'<rect x="3" y="9" width="18" height="10" rx="2"/><path d="M7 9V5h4v4M15 9V7h3v2M7 14h.01M12 14h5"/>',
@@ -707,6 +717,7 @@ function repairAdvance(id){
 /* ---------- views ---------- */
 const VIEWS={
  overview:{t:'Plant overview',s:()=>{const d=openEvents().length;return d?`${d} machine${d>1?'s':''} down right now`:'All lines running'}},
+ reports:{t:'Reports',s:()=>'Downtime, availability and spend by month and year'},
  downtime:{t:'Downtime',s:()=>'Every stop, its cause and the spares it used'},
  parts:{t:'Spare parts',s:()=>S.parts.length+' parts in stores'},
  machines:{t:'Machines',s:()=>S.machines.length+' machines on '+S.lines.length+' lines'},
@@ -716,54 +727,142 @@ const VIEWS={
  settings:{t:'Data & sync',s:()=>'Cloud database and Google Sheets export'}};
 
 function kpi(l,v,sm,d,cls=''){return `<div class="card kpi ${cls}"><span class="l">${l}</span><span class="v num">${v}${sm?`<small>${sm}</small>`:''}</span><span class="d">${d||'&nbsp;'}</span></div>`}
-function delta(cur,prev,unit,lowerBetter=true){if(!prev&&!cur)return 'no change vs previous 30 days';const diff=cur-prev,pct=prev?Math.round(diff/prev*100):0;const bad=lowerBetter?diff>0:diff<0;return `<span class="${diff===0?'':bad?'up':'down'}">${diff>0?'▲':diff<0?'▼':'='} ${Math.abs(pct)}%</span> vs previous 30 days`}
 
-function dailyChart(days){
-  const bins=[];for(let i=days-1;i>=0;i--){const t=NOW()-i*DAY;bins.push({k:dayKey(t),t,u:0,p:0})}
-  const idx=Object.fromEntries(bins.map((b,i)=>[b.k,i]));
-  S.events.forEach(e=>{const i=idx[dayKey(evStart(e))];if(i!=null)bins[i][e.type==='Planned'?'p':'u']+=evMin(e)});
-  const max=Math.max(60,...bins.map(b=>b.u+b.p)),top=Math.ceil(max/120)*120;
-  const W=720,H=230,L=40,B=26,T=10,R=6,pw=W-L-R,ph=H-B-T,bw=pw/days;
-  let g='';for(let i=0;i<=4;i++){const v=top*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${(v/60).toFixed(v%60?1:0)}h</text>`}
-  bins.forEach((b,i)=>{const x=L+i*bw+bw*.14,w=bw*.72;const hu=ph*b.u/top,hp=ph*b.p/top;
-    if(b.u)g+=`<rect class="b-un" x="${x}" y="${T+ph-hu}" width="${w}" height="${hu}" rx="2"><title>${fDate(b.t)}: ${fDur(b.u)} unplanned</title></rect>`;
-    if(b.p)g+=`<rect class="b-pl" x="${x}" y="${T+ph-hu-hp}" width="${w}" height="${hp}" rx="2"><title>${fDate(b.t)}: ${fDur(b.p)} planned</title></rect>`;
-    if(i%5===0||i===days-1)g+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${fDate(b.t)}</text>`});
-  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily downtime, last ${days} days">${g}</svg></div>`;
-}
+/* ---------- period helpers ---------- */
+const Y0=t=>new Date(new Date(t).getFullYear(),0,1).getTime();
+function ovBounds(){
+  const r=ui.ovRange,now=NOW();let from,pf=null,pt=null,label,plabel='previous period';
+  if(r==='ytd'){const d=new Date(now);from=Y0(now);pf=new Date(d.getFullYear()-1,0,1).getTime();pt=new Date(d.getFullYear()-1,d.getMonth(),d.getDate(),d.getHours(),d.getMinutes()).getTime();label='this year so far';plabel='same period last year'}
+  else if(r==='all'){const m=S.events.reduce((a,e)=>Math.min(a,evStart(e)),now);from=Math.min(m,now-30*DAY);label='all time'}
+  else{const d=+r;from=now-d*DAY;pf=from-d*DAY;pt=from;label=d===365?'the last 12 months':'the last '+d+' days';plabel='the '+d+' days before'}
+  return {from,to:now,pf,pt,label,plabel}}
+const evIn=(from,to,pred)=>S.events.filter(e=>{const t=evStart(e);return t>=from&&t<to&&(!pred||pred(e))});
+function availRange(lid,from,to){const ms=S.machines.filter(m=>(!lid||m.line===lid)&&m.status!=='Decommissioned').map(m=>m.id);if(!ms.length||from>=NOW())return null;to=Math.min(to,NOW());const days=Math.max(1/24,(to-from)/DAY);const un=sum(evIn(from,to,e=>e.type==='Unplanned'&&ms.includes(e.machine)));return Math.max(0,1-un/(ms.length*days*SCHED))}
+const mttrOf=list=>{const c=list.filter(e=>e.type==='Unplanned'&&e.end);return c.length?sum(c)/c.length:0};
+const pct=v=>v==null?'–':(v*100).toFixed(1)+'%';
+const short=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'K':String(Math.round(n));
+function niceMax(v){if(v<=0)return 1;const pw=Math.pow(10,Math.floor(Math.log10(v))),n=v/pw;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*pw}
+function delta(cur,prev,plabel,lowerBetter=true){if(prev==null)return '&nbsp;';if(!prev&&!cur)return 'no change vs '+plabel;const diff=cur-prev,pc=prev?Math.round(diff/prev*100):100,bad=lowerBetter?diff>0:diff<0;return `<span class="${diff===0?'':bad?'up':'down'}">${diff>0?'▲':diff<0?'▼':'='} ${Math.abs(pc)}%</span> vs ${plabel}`}
+function deltaPts(cur,prev,plabel){if(cur==null||prev==null)return '&nbsp;';const d=(cur-prev)*100;if(Math.abs(d)<0.05)return 'no change vs '+plabel;return `<span class="${d>0?'down':'up'}">${d>0?'▲':'▼'} ${Math.abs(d).toFixed(1)} pts</span> vs ${plabel}`}
+function timeBins(from,to){
+  const days=(to-from)/DAY,bins=[];
+  if(days<=45){let t=new Date(from);t=new Date(t.getFullYear(),t.getMonth(),t.getDate()).getTime();for(;t<to;t+=DAY)bins.push({from:t,to:t+DAY,label:fDate(t)});return {bins,unit:'day'}}
+  if(days<=200){let t=from;for(;t<to;t+=7*DAY)bins.push({from:t,to:t+7*DAY,label:fDate(t)});return {bins,unit:'week'}}
+  let d=new Date(from);d=new Date(d.getFullYear(),d.getMonth(),1);for(;d.getTime()<to;d=new Date(d.getFullYear(),d.getMonth()+1,1))bins.push({from:d.getTime(),to:new Date(d.getFullYear(),d.getMonth()+1,1).getTime(),label:MON[d.getMonth()]+" '"+String(d.getFullYear()).slice(2)});return {bins,unit:'month'}}
+function fillBins(bins){bins.forEach(b=>{b.u=0;b.p=0});S.events.forEach(e=>{const t=evStart(e);for(let i=0;i<bins.length;i++){if(t>=bins[i].from&&t<bins[i].to){bins[i][e.type==='Planned'?'p':'u']+=evMin(e);break}}})}
+function stackChart(bins,aria){
+  const n=bins.length,maxH=Math.max(...bins.map(b=>(b.u+b.p)/60),1),top=niceMax(maxH);
+  const W=720,H=230,L=44,B=26,T=10,R=6,pw=W-L-R,ph=H-B-T,bw=pw/Math.max(n,1),step=Math.ceil(n/9);let g='';
+  for(let i=0;i<=4;i++){const v=top*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${Number.isInteger(v)?v:v.toFixed(1)}h</text>`}
+  bins.forEach((b,i)=>{const x=L+i*bw+bw*.14,w=Math.max(1,bw*.72),hu=ph*(b.u/60)/top,hp=ph*(b.p/60)/top;
+    if(b.u)g+=`<rect class="b-un" x="${x}" y="${T+ph-hu}" width="${w}" height="${hu}" rx="2"><title>${b.label}: ${fDur(b.u)} unplanned</title></rect>`;
+    if(b.p)g+=`<rect class="b-pl" x="${x}" y="${T+ph-hu-hp}" width="${w}" height="${hp}" rx="2"><title>${b.label}: ${fDur(b.p)} planned</title></rect>`;
+    if(i%step===0)g+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle">${b.label}</text>`});
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg></div>`}
+function lineChart(buckets,series,aria){
+  const vals=[].concat(...series.map(s=>s.vals)).filter(v=>v!=null);if(!vals.length)return '<div class="empty">No data for this period.</div>';
+  const lo=Math.max(0,Math.floor(Math.min(...vals)*100-1)),hi=100,W=720,H=230,L=44,B=26,T=10,R=14,pw=W-L-R,ph=H-B-T,n=buckets.length,bw=pw/n;
+  const X=i=>L+bw*i+bw/2,Y=v=>T+ph-(v*100-lo)/(hi-lo)*ph;let g='';
+  for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${Math.round(v*10)/10}%</text>`}
+  buckets.forEach((b,i)=>{g+=`<text x="${X(i)}" y="${H-8}" text-anchor="middle">${b.label}</text>`});
+  series.forEach(se=>{let d='',pen=false;se.vals.forEach((v,i)=>{if(v==null){pen=false;return}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true});
+    g+=`<path d="${d}" fill="none" style="stroke:${se.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    se.vals.forEach((v,i)=>{if(v!=null)g+=`<circle cx="${X(i)}" cy="${Y(v)}" r="3.2" style="fill:${se.color}"><title>${esc(se.name)}, ${buckets[i].label}: ${(v*100).toFixed(1)}%</title></circle>`})});
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg></div>`}
+function groupChart(buckets,series,aria){
+  const n=buckets.length,max=Math.max(1,...[].concat(...series.map(s=>s.vals))),top=niceMax(max),W=720,H=230,L=48,B=26,T=10,R=6,pw=W-L-R,ph=H-B-T,bw=pw/n,k=series.length,w=bw*.78/k;let g='';
+  for(let i=0;i<=4;i++){const v=top*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${short(v)}</text>`}
+  buckets.forEach((b,i)=>{series.forEach((se,j)=>{const v=se.vals[i];if(v>0){const h=ph*v/top,x=L+i*bw+bw*.11+j*w;g+=`<rect x="${x}" y="${T+ph-h}" width="${Math.max(1,w-1)}" height="${h}" rx="2" style="fill:${se.color}"><title>${esc(se.name)}, ${b.label}: LKR ${Math.round(v).toLocaleString('en-US')}</title></rect>`}});g+=`<text x="${L+i*bw+bw/2}" y="${H-8}" text-anchor="middle">${b.label}</text>`});
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg></div>`}
+const periodPicker=(cur)=>`<div class="seg" role="group" aria-label="Period">${[['7','7 days'],['30','30 days'],['90','90 days'],['365','12 months'],['ytd','This year'],['all','All time']].map(([v,l])=>`<button data-act="setF" data-k="ovRange" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>`;
+
 function hbars(rows,max,cls=''){if(!rows.length)return '<div class="empty">No downtime in this period.</div>';return `<div class="hb-list">${rows.map(r=>`<div class="hb-row"><span class="lab" title="${esc(r.l)}">${r.click?`<button class="link" data-act="openMachine" data-id="${esc(r.click)}">${esc(r.l)}</button>`:esc(r.l)}</span><span class="trk" style="height:10px;background:var(--surface-2);border-radius:5px;border:1px solid var(--line);overflow:hidden"><span style="display:block;height:100%;width:${Math.max(2,r.v/max*100)}%;background:${r.c||'var(--crit)'};border-radius:4px"></span></span><span class="val mono" style="text-align:right;font-size:12px;color:var(--muted)">${esc(r.t)}</span></div>`).join('')}</div>`}
 
 function vOverview(){
-  const cur=range(30,0,e=>e.type==='Unplanned'),prev=range(30,30,e=>e.type==='Unplanned');
+  const B=ovBounds(),cur=evIn(B.from,B.to,e=>e.type==='Unplanned'),prev=B.pf?evIn(B.pf,B.pt,e=>e.type==='Unplanned'):null;
   const down=openEvents(),mt=S.machines.filter(m=>!openEv(m.id)&&m.status==='Maintenance Required').length;
   const al=alertParts(),val=S.parts.reduce((a,p)=>a+p.stock*p.cost,0);
   const rOpen=S.repairs.filter(r=>r.status!=='Returned');
-  const m1=mttr(30),m0=mttr(30,30);
-  const blocked=down.filter(e=>e.blocked);
+  const m1=mttrOf(cur),m0=prev?mttrOf(prev):null,av=availRange(null,B.from,B.to),av0=B.pf?availRange(null,B.pf,B.pt):null;
+  const blocked=down.filter(e=>e.blocked&&pById(e.blocked));
   const alerts=blocked.map(e=>{const p=pById(e.blocked),m=mById(e.machine);return `<div class="alert"><div class="grow"><b>${esc(m.id)} ${esc(m.name)} is waiting for a spare.</b><div>${esc(p.code)} · ${esc(p.name)} has ${p.stock} in stock${onOrder(p.id)?`, ${onOrder(p.id)} on order`:', none on order'}.</div></div><span class="timer num">${fDur(evMin(e))}</span><button class="btn sm" data-act="openPart" data-id="${p.id}">View part</button><button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button></div>`}).join('');
-  const lines=S.lines.map(l=>{const ms=S.machines.filter(m=>m.line===l.id),av=lineAvail(l.id,30),un=sum(range(30,0,e=>e.type==='Unplanned'&&ms.some(m=>m.id===e.machine)));
-    return `<div class="line"><div class="line-h"><span class="code">${esc(l.code)}</span><h3>${esc(l.name)}</h3><div class="meta"><span>Availability (30d) <b>${(av*100).toFixed(1)}%</b></span><span>Unplanned stops <b>${fHrs(un)} h</b></span></div></div>
-    <div class="flow">${ms.map(m=>{const s=mStatus(m);return `<button class="mach st-${stCls(s)}" data-act="openMachine" data-id="${esc(m.id)}"><span class="c">${esc(m.id)}</span><span class="n">${esc(m.name)}</span><span class="s"><i></i>${esc(s)}</span></button>`}).join('')}</div></div>`}).join('');
-  const top=S.machines.map(m=>({m,v:sum(range(30,0,e=>e.type==='Unplanned'&&e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
-  return `${alerts}
+  const lines=S.lines.map(l=>{const ms=S.machines.filter(m=>m.line===l.id),a=availRange(l.id,B.from,B.to),un=sum(evIn(B.from,B.to,e=>e.type==='Unplanned'&&ms.some(m=>m.id===e.machine)));
+    return `<div class="line"><div class="line-h"><span class="code">${esc(l.code)}</span><h3>${esc(l.name)}</h3><div class="meta"><span>Availability <b>${pct(a)}</b></span><span>Unplanned stops <b>${fHrs(un)} h</b></span></div></div>
+    <div class="flow">${ms.map(m=>{const s=mStatus(m);return `<button class="mach st-${stCls(s)}" data-act="openMachine" data-id="${esc(m.id)}"><span class="c">${esc(m.id)}</span><span class="n">${esc(m.name)}</span><span class="s"><i></i>${esc(s)}</span></button>`}).join('')||'<span class="sub" style="color:var(--muted)">No machines on this line yet.</span>'}</div></div>`}).join('')||'<div class="line"><div class="empty">No production lines yet. Add one on the Machines page.</div></div>';
+  const top=S.machines.map(m=>({m,v:sum(cur.filter(e=>e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
+  const tb=timeBins(B.from,B.to);fillBins(tb.bins);
+  const pl=B.plabel;
+  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${periodPicker(ui.ovRange)}<span style="color:var(--muted)">Showing ${esc(B.label)}</span></div><button class="btn" data-act="nav" data-id="reports">Month and year reports →</button></div>${alerts}
   <div class="grid g-kpi">
     ${kpi('Machines down now',down.length,'/ '+S.machines.filter(m=>m.status!=='Decommissioned').length,mt?mt+' more need maintenance':'None flagged for maintenance',down.length?'bad':'good')}
-    ${kpi('Unplanned downtime',fHrs(sum(cur)),'h',delta(sum(cur),sum(prev)))}
-    ${kpi('Breakdowns',cur.length,'',delta(cur.length,prev.length))}
-    ${kpi('Mean time to repair',m1?fDur(m1):'–','',m0?delta(m1,m0):'')}
+    ${kpi('Unplanned downtime',fHrs(sum(cur)),'h',delta(sum(cur),prev&&sum(prev),pl))}
+    ${kpi('Breakdowns',cur.length,'',delta(cur.length,prev&&prev.length,pl))}
+    ${kpi('Mean time to repair',m1?fDur(m1):'–','',delta(m1,m0,pl))}
+    ${kpi('Availability',pct(av),'',deltaPts(av,av0,pl))}
     ${kpi('Parts to reorder',al.length,'',al.filter(p=>stock(p).r<=1).length+' critical or out of stock',al.length?'warn':'good')}
     ${kpi('Stock value',lkrK(val),'',S.parts.length+' part numbers')}
   </div>
   <div class="card"><div class="card-h"><h2>Production lines</h2><small>Tiles flow left to right. Click a machine for details.</small></div>${lines}</div>
   <div class="grid g-2">
-    <div class="card"><div class="card-h"><h2>Daily downtime</h2><div class="legend"><span><i style="background:var(--crit)"></i>Unplanned</span><span><i style="background:var(--plan)"></i>Planned</span></div></div><div class="card-b">${dailyChart(30)}</div></div>
-    <div class="card"><div class="card-h"><h2>Most downtime, 30 days</h2><small>unplanned</small></div><div class="card-b">${hbars(top.map(x=>({l:x.m.id+' '+x.m.name.replace(/ [A-Z]\d?$/,''),v:x.v,t:fDur(x.v),click:x.m.id})),top[0]?top[0].v:1)}</div></div>
+    <div class="card"><div class="card-h"><h2>Downtime per ${tb.unit}</h2><div class="legend"><span><i style="background:var(--crit)"></i>Unplanned</span><span><i style="background:var(--plan)"></i>Planned</span></div></div><div class="card-b">${stackChart(tb.bins,'Downtime per '+tb.unit)}</div></div>
+    <div class="card"><div class="card-h"><h2>Most downtime</h2><small>unplanned, ${esc(B.label)}</small></div><div class="card-b">${hbars(top.map(x=>({l:x.m.id+' '+x.m.name.replace(/ [A-Z]\d?$/,''),v:x.v,t:fDur(x.v),click:x.m.id})),top[0]?top[0].v:1)}</div></div>
   </div>
   <div class="grid g-3">
     <div class="card"><div class="card-h"><h2>Spares to reorder</h2><button class="link" data-act="nav" data-id="purchasing">Purchasing →</button></div><div class="card-b row-list">${al.length?al.slice(0,6).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.stock} left, min ${p.min}${onOrder(p.id)?' · '+onOrder(p.id)+' on order':''}</div></div>${statusBadge(s.k,s.c)}</div>`}).join(''):'<div class="empty">Everything is above reorder level.</div>'}</div></div>
-    <div class="card"><div class="card-h"><h2>Open repairs</h2><button class="link" data-act="nav" data-id="repairs">Pipeline →</button></div><div class="card-b row-list">${rOpen.length?rOpen.map(r=>{const a=aById(r.asset),late=r.expected&&r.expected<NOW()&&r.status!=='Completed';return `<div class="item"><div class="grow"><div class="t">${esc(pById(a.part).name)}</div><div class="s mono">${esc(a.serial)} · ${esc(r.repairer)}</div></div>${late?statusBadge('Overdue','crit'):statusBadge(r.status,r.status==='Requested'?'':'info')}</div>`}).join(''):'<div class="empty">No assets out for repair.</div>'}</div></div>
-    <div class="card"><div class="card-h"><h2>Recent stops</h2><button class="link" data-act="nav" data-id="downtime">All downtime →</button></div><div class="card-b row-list">${S.events.slice().sort((a,b)=>evStart(b)-evStart(a)).slice(0,5).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.machine)} · ${esc(e.cause)}</div><div class="s">${fDT(evStart(e))}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')}</div></div>
+    <div class="card"><div class="card-h"><h2>Open repairs</h2><button class="link" data-act="nav" data-id="repairs">Pipeline →</button></div><div class="card-b row-list">${rOpen.length?rOpen.map(r=>{const a=aById(r.asset),late=r.expected&&r.expected<NOW()&&r.status!=='Completed';return a?`<div class="item"><div class="grow"><div class="t">${esc((pById(a.part)||{}).name||'')}</div><div class="s mono">${esc(a.serial)} · ${esc(r.repairer)}</div></div>${late?statusBadge('Overdue','crit'):statusBadge(r.status,r.status==='Requested'?'':'info')}</div>`:''}).join(''):'<div class="empty">No assets out for repair.</div>'}</div></div>
+    <div class="card"><div class="card-h"><h2>Recent stops</h2><button class="link" data-act="nav" data-id="downtime">All downtime →</button></div><div class="card-b row-list">${S.events.slice().sort((a,b)=>evStart(b)-evStart(a)).slice(0,5).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.machine)} · ${esc(e.cause)}</div><div class="s">${fDT(evStart(e))}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')||'<div class="empty">No stops recorded.</div>'}</div></div>
   </div>`;
+}
+
+function bucketStats(from,to){
+  const ev=evIn(from,to),un=ev.filter(e=>e.type==='Unplanned'),pl=ev.filter(e=>e.type==='Planned');
+  let issued=0,qty=0;S.txns.forEach(t=>{if(t.type==='Issue to machine'&&t.t>=from&&t.t<to){const p=pById(t.partId);if(p){issued+=-t.qty*p.cost;qty+=-t.qty}}});
+  const bought=S.pos.filter(o=>o.status!=='Cancelled'&&o.date>=from&&o.date<to).reduce((a,o)=>a+o.qty*o.unit,0);
+  const rep=S.repairs.filter(r=>r.sent&&r.sent>=from&&r.sent<to).reduce((a,r)=>a+(r.costLKR||0),0);
+  return {n:ev.length,un:sum(un),pl:sum(pl),unN:un.length,mttr:mttrOf(ev),avail:availRange(null,from,to),lineAv:S.lines.map(l=>availRange(l.id,from,to)),issued,qty,bought,rep,future:from>NOW()}}
+function vReports(){
+  const cy=new Date().getFullYear(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date),...S.txns.map(t=>t.t)),y0=new Date(t0).getFullYear();
+  const years=[];for(let y=cy;y>=y0;y--)years.push(y);
+  if(years.indexOf(+ui.rpYear)<0)ui.rpYear=cy;
+  const mode=ui.rpMode,yr=+ui.rpYear,bk=[];
+  if(mode==='month'){for(let m=0;m<12;m++)bk.push({label:MON[m],long:MON[m]+' '+yr,from:new Date(yr,m,1).getTime(),to:new Date(yr,m+1,1).getTime()})}
+  else{for(let y=y0;y<=cy;y++)bk.push({label:String(y),long:String(y),from:new Date(y,0,1).getTime(),to:new Date(y+1,0,1).getTime()})}
+  bk.forEach(b=>{b.s=bucketStats(b.from,b.to)});
+  const sf=bk[0].from,st=bk[bk.length-1].to,sc=bucketStats(sf,st),pv=mode==='month'?bucketStats(new Date(yr-1,0,1).getTime(),new Date(yr,0,1).getTime()):null,hasPv=pv&&pv.n>0,pl=String(yr-1);
+  const scope=mode==='month'?String(yr):(y0===cy?String(cy):y0+' to '+cy);
+  const un=evIn(sf,st,e=>e.type==='Unplanned');
+  const byM=S.machines.map(m=>({m,v:sum(un.filter(e=>e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
+  const byC={};evIn(sf,st).forEach(e=>{byC[e.cause]=(byC[e.cause]||0)+evMin(e)});const causes=Object.entries(byC).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const byP={};S.txns.forEach(t=>{if(t.type==='Issue to machine'&&t.t>=sf&&t.t<st){const p=pById(t.partId);if(p){const o=byP[p.id]||(byP[p.id]={p,q:0,v:0});o.q+=-t.qty;o.v+=-t.qty*p.cost}}});const parts=Object.values(byP).sort((a,b)=>b.v-a.v).slice(0,6);
+  const cols=['var(--c1)','var(--c2)','var(--c3)','var(--c4)'];
+  const rows=bk.map(b=>{const s=b.s;return `<tr class="${s.future?'dim':''}"><td class="name">${esc(b.long)}</td><td class="r mono">${s.n}</td><td class="r mono">${fHrs(s.un)}</td><td class="r mono">${fHrs(s.pl)}</td><td class="r mono">${s.mttr?fDur(s.mttr):'–'}</td><td class="r mono">${pct(s.avail)}</td><td class="r mono">${s.issued?lkr(s.issued):'–'}</td><td class="r mono">${s.bought?lkr(s.bought):'–'}</td><td class="r mono">${s.rep?lkr(s.rep):'–'}</td></tr>`}).join('');
+  const tot=`<tr class="tot"><td>Total ${esc(scope)}</td><td class="r mono">${sc.n}</td><td class="r mono">${fHrs(sc.un)}</td><td class="r mono">${fHrs(sc.pl)}</td><td class="r mono">${sc.mttr?fDur(sc.mttr):'–'}</td><td class="r mono">${pct(sc.avail)}</td><td class="r mono">${lkr(sc.issued)}</td><td class="r mono">${lkr(sc.bought)}</td><td class="r mono">${lkr(sc.rep)}</td></tr>`;
+  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="seg" role="group" aria-label="Report type"><button data-act="setF" data-k="rpMode" data-v="month" aria-pressed="${mode==='month'}">Month by month</button><button data-act="setF" data-k="rpMode" data-v="year" aria-pressed="${mode==='year'}">Year by year</button></div>
+    ${mode==='month'?`<select data-f="rpYear" aria-label="Year">${years.map(y=>`<option value="${y}"${y===yr?' selected':''}>${y}</option>`).join('')}</select>`:''}</div>
+    <button class="btn" data-act="nav" data-id="settings">Download as Excel or CSV →</button></div>
+  <div class="grid g-kpi">
+    ${kpi('Unplanned downtime',fHrs(sc.un),'h',hasPv?delta(sc.un,pv.un,pl):esc(scope))}
+    ${kpi('Breakdowns',sc.unN,'',hasPv?delta(sc.unN,pv.unN,pl):'&nbsp;')}
+    ${kpi('Mean time to repair',sc.mttr?fDur(sc.mttr):'–','',hasPv?delta(sc.mttr,pv.mttr,pl):'&nbsp;')}
+    ${kpi('Availability',pct(sc.avail),'',hasPv?deltaPts(sc.avail,pv.avail,pl):'&nbsp;')}
+    ${kpi('Spares issued',lkrK(sc.issued),'',sc.qty+' parts used')}
+    ${kpi('Purchases',lkrK(sc.bought),'','ordered in '+esc(scope))}
+    ${kpi('Repair spend',lkrK(sc.rep),'','sent for repair in '+esc(scope))}
+  </div>
+  <div class="grid g-2" style="margin-top:0">
+    <div class="card"><div class="card-h"><h2>Downtime ${mode==='month'?'by month':'by year'}</h2><div class="legend"><span><i style="background:var(--crit)"></i>Unplanned</span><span><i style="background:var(--plan)"></i>Planned</span></div></div><div class="card-b">${stackChart(bk.map(b=>({label:b.label,u:b.s.un,p:b.s.pl})),'Downtime '+scope)}</div></div>
+    <div class="card"><div class="card-h"><h2>Availability by line</h2><div class="legend">${S.lines.map((l,i)=>`<span><i style="background:${cols[i%4]}"></i>${esc(l.code)}</span>`).join('')}</div></div><div class="card-b">${lineChart(bk,S.lines.map((l,i)=>({name:l.name,color:cols[i%4],vals:bk.map(b=>b.s.lineAv[i])})),'Availability by line '+scope)}</div></div>
+  </div>
+  <div class="grid g-2">
+    <div class="card"><div class="card-h"><h2>Spares issued and purchased</h2><div class="legend"><span><i style="background:var(--c1)"></i>Issued to machines</span><span><i style="background:var(--c2)"></i>Purchased</span></div></div><div class="card-b">${groupChart(bk,[{name:'Issued',color:'var(--c1)',vals:bk.map(b=>b.s.issued)},{name:'Purchased',color:'var(--c2)',vals:bk.map(b=>b.s.bought)}],'Spares value '+scope)}<div class="sub" style="color:var(--muted);font-size:12px;margin-top:6px">Values in LKR (K = thousand, M = million), at current unit value.</div></div></div>
+    <div class="card"><div class="card-h"><h2>Where the downtime came from</h2><small>${esc(scope)}</small></div><div class="card-b">${hbars(causes.map(([k,v])=>({l:k,v,t:fDur(v),c:PLANNED.indexOf(k)>=0?'var(--plan)':'var(--crit)'})),causes[0]?causes[0][1]:1)}</div></div>
+  </div>
+  <div class="grid g-2">
+    <div class="card"><div class="card-h"><h2>Machines with most downtime</h2><small>unplanned, ${esc(scope)}</small></div><div class="card-b">${hbars(byM.map(x=>({l:x.m.id+' '+x.m.name.replace(/ [A-Z]\d?$/,''),v:x.v,t:fDur(x.v),click:x.m.id})),byM[0]?byM[0].v:1)}</div></div>
+    <div class="card"><div class="card-h"><h2>Spares used most</h2><small>by value, ${esc(scope)}</small></div><div class="card-b row-list">${parts.map(o=>`<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${o.p.id}">${esc(o.p.name)}</button></div><div class="s mono">${esc(o.p.code)} · ${o.q} used</div></div><span class="mono">${lkr(o.v)}</span></div>`).join('')||'<div class="empty">No spares issued in this period.</div>'}</div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><div class="card-h"><h2>${mode==='month'?'Month by month, '+yr:'Year by year'}</h2><small>Availability assumes 22 scheduled hours a day on the machines you have now.</small></div><div class="tbl-wrap"><table><thead><tr><th>Period</th><th class="r">Stops</th><th class="r">Unplanned h</th><th class="r">Planned h</th><th class="r">Avg repair</th><th class="r">Availability</th><th class="r">Spares issued</th><th class="r">Purchases</th><th class="r">Repairs</th></tr></thead><tbody>${rows}${tot}</tbody></table></div></div>`;
 }
 
 function dtFiltered(){
@@ -930,6 +1029,7 @@ function tables(){
    'Machines':[['Code','Name','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
+   'Monthly summary':[['Month','Stops','Unplanned hours','Planned hours','Average repair (min)','Availability %','Spares issued (LKR)','Purchases (LKR)','Repair spend (LKR)']].concat((function(){const out=[],now=new Date(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date));let d=new Date(new Date(t0).getFullYear(),new Date(t0).getMonth(),1);for(;d<=now;d=new Date(d.getFullYear(),d.getMonth()+1,1)){const b=bucketStats(d.getTime(),new Date(d.getFullYear(),d.getMonth()+1,1).getTime());out.push([d.getFullYear()+'-'+p2(d.getMonth()+1),b.n,+(b.un/60).toFixed(1),+(b.pl/60).toFixed(1),Math.round(b.mttr),b.avail==null?'':+(b.avail*100).toFixed(2),Math.round(b.issued),Math.round(b.bought),Math.round(b.rep)])}return out})()),
    'Assets':[['Serial','Stores code','Part','Status','Fitted to','Location','Installed','Warranty until']].concat(S.assets.map(a=>[a.serial,pc(a.part),pn(a.part),a.status,a.machine||'',a.loc||'',a.installed?fFull(a.installed).slice(0,10):'',a.warranty?fFull(a.warranty).slice(0,10):''])),
    'Repairs':[['Repair ID','Serial','Part','Where','Repairer','Country','Status','Sent','Expected back','Cost (LKR)','Reference','Fault']].concat(S.repairs.map(r=>{const a=aById(r.asset)||{};return [r.id,a.serial||'',a.part?pn(a.part):'',r.type,r.repairer,r.country||'',r.status,r.sent?fFull(r.sent).slice(0,10):'',r.expected?fFull(r.expected).slice(0,10):'',r.costLKR||0,r.ref||'',r.fault||'']})),
    'Purchase orders':[['PO','Stores code','Part','Supplier','Ordered','Received','Unit cost (LKR)','Total (LKR)','Order date','Expected','Status']].concat(S.pos.map(o=>[o.id,pc(o.part),pn(o.part),o.supplier,o.qty,o.recv,o.unit,o.qty*o.unit,fFull(o.date).slice(0,10),o.eta?fFull(o.eta).slice(0,10):'',o.status]))};
@@ -1010,13 +1110,13 @@ function vSettings(){
 
 /* ---------- render ---------- */
 function renderNav(){
-  const items=[['overview','Overview'],['downtime','Downtime'],['parts','Spare parts'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
+  const items=[['overview','Overview'],['reports','Reports'],['downtime','Downtime'],['parts','Spare parts'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
   const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
 function render(){
   renderNav();
-  const v=VIEWS[ui.view],html={overview:vOverview,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
+  const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
   const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newLine">${ic('plus')} Add line</button><button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,assets:`<button class="btn" data-act="newAsset">${ic('plus')} Add asset</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
   const y=window.scrollY;
   $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions"><button class="btn" data-act="undo" ${undoStack.length?'':'disabled'} title="Undo (Ctrl+Z)" aria-label="Undo">${ic('undo')}<span class="lbl">Undo</span></button><button class="btn" data-act="redo" ${redoStack.length?'':'disabled'} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${ic('redo')}<span class="lbl">Redo</span></button>${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;

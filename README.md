@@ -2,7 +2,8 @@
 
 Spare parts and downtime monitoring for a three-line tile factory. Single-file app (`index.html`), no build step.
 
-- Overview of production lines, with machines coloured by status
+- Overview of production lines, with machines coloured by status, for 7 days up to all time
+- Reports page: downtime, availability by line, spares and spend, month by month and year by year
 - Downtime log with causes, spare parts used and mean time to repair
 - Spare parts stock with minimum and reorder levels
 - Serialized assets, repair pipeline (local and abroad) and purchase orders
