@@ -203,7 +203,15 @@ td.r,th.r{text-align:right}
 .note{background:var(--accent-soft);color:var(--ink);border-radius:10px;padding:9px 14px;font-size:13px;margin-bottom:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .note .link{margin-left:auto}
 
+.card-b select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-height:36px}
+.code{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px;font:12px/1.5 var(--f-mono);overflow:auto;white-space:pre;max-height:230px;margin:0}
+.cfg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.steps{margin:0 0 12px;padding-left:20px;color:var(--muted)}
+.steps li{margin-bottom:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--idle);margin-right:8px}
+.dot.ok{background:var(--ok)} .dot.busy{background:var(--warn)} .dot.err{background:var(--crit)}
 @media (max-width:900px){
+  .cfg{grid-template-columns:1fr}
   .app{grid-template-columns:minmax(0,1fr)}
   .rail{position:static;height:auto;flex-direction:row;align-items:center;gap:12px;padding:10px max(12px,env(safe-area-inset-left,0px));overflow-x:auto}
   .brand span,.rail-foot{display:none}
@@ -224,7 +232,7 @@ td.r,th.r{text-align:right}
       <div><b>Line Watch</b><span>Spares &amp; downtime</span></div>
     </div>
     <nav class="nav" id="nav" aria-label="Main"></nav>
-    <div class="rail-foot"><span id="saveState">Saved in this browser</span><button data-act="resetData">Reset sample data</button></div>
+    <div class="rail-foot"><span id="saveState">Saved in this browser only</span><button data-act="resetData">Reset sample data</button></div>
   </aside>
   <main class="main" id="main"></main>
 </div>
@@ -358,7 +366,7 @@ function seed(){
 const KEY='linewatch-v1';
 let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));$('#saveState').textContent='Saved in this browser'}catch(e){memOnly=true;$('#saveState').textContent='Not saved (browser storage blocked)'}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
 const ui={view:'overview',partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
@@ -394,6 +402,7 @@ const IC={
  assets:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5M8 17h3"/>',
  repairs:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6z"/>',
  purchasing:'<path d="M3 4h2l2.4 11h11l2-8H6.2M9 20h.01M17 20h.01"/>',
+ settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
  plus:'<path d="M12 5v14M5 12h14"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>'};
 const ic=(n,extra='')=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra} aria-hidden="true">${IC[n]}</svg>`;
 
@@ -574,7 +583,8 @@ const VIEWS={
  machines:{t:'Machines',s:()=>S.machines.length+' machines on '+S.lines.length+' lines'},
  assets:{t:'Serialized assets',s:()=>'Drives and sensors tracked by serial number'},
  repairs:{t:'Repairs',s:()=>'Local and overseas repair pipeline'},
- purchasing:{t:'Purchasing',s:()=>'Purchase orders and what needs ordering'}};
+ purchasing:{t:'Purchasing',s:()=>'Purchase orders and what needs ordering'},
+ settings:{t:'Data & sync',s:()=>'Cloud database and Google Sheets export'}};
 
 function kpi(l,v,sm,d,cls=''){return `<div class="card kpi ${cls}"><span class="l">${l}</span><span class="v num">${v}${sm?`<small>${sm}</small>`:''}</span><span class="d">${d||'&nbsp;'}</span></div>`}
 function delta(cur,prev,unit,lowerBetter=true){if(!prev&&!cur)return 'no change vs previous 30 days';const diff=cur-prev,pct=prev?Math.round(diff/prev*100):0;const bad=lowerBetter?diff>0:diff<0;return `<span class="${diff===0?'':bad?'up':'down'}">${diff>0?'▲':diff<0?'▼':'='} ${Math.abs(pct)}%</span> vs previous 30 days`}
@@ -734,22 +744,155 @@ function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=st
   ${as.length?`<div class="sec"><h4>Serial numbers</h4>${as.map(a=>`<div class="item"><div class="grow"><div class="t mono">${esc(a.serial)}</div><div class="s">${esc(a.loc)}</div></div>${statusBadge(a.status,a.status==='Active on line'?'ok':'warn')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Movements</h4>${tx.map(t=>`<div class="item"><div class="grow"><div class="t">${esc(t.type)}</div><div class="s">${fDate(t.t)}${t.machine?' · '+esc(t.machine):''}${t.ref?' · '+esc(t.ref):''}</div></div><span class="mono ${t.qty<0?'up':'down'}">${t.qty>0?'+':''}${t.qty}</span></div>`).join('')||'<div class="sub">No movements recorded.</div>'}</div>`}}
 
+
+/* ---------- cloud sync (Supabase REST) ---------- */
+const CFG_KEY='linewatch-cfg';
+const CFG0={url:'',key:'',row:'main',auto:true,sheetsUrl:'',sheetsToken:''};
+let cfg=(function(){try{return Object.assign({},CFG0,JSON.parse(localStorage.getItem(CFG_KEY)||'{}'))}catch(e){return Object.assign({},CFG0)}})();
+if(!cfg.sheetsToken)cfg.sheetsToken=Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6);
+function saveCfg(){try{localStorage.setItem(CFG_KEY,JSON.stringify(cfg))}catch(e){}}
+const sbOn=()=>!!(cfg.url&&cfg.key);
+let sync={state:'off',msg:'',conflict:false},edits=0,pushing=false,pt=null;
+const hhmm=()=>{const d=new Date();return p2(d.getHours())+':'+p2(d.getMinutes())};
+function updateStatus(){const el=$('#saveState');if(!el)return;
+  el.innerHTML=sbOn()?'<span class="dot '+(sync.state==='ok'?'ok':sync.state==='busy'||sync.state==='pending'?'busy':sync.state==='err'?'err':'')+'"></span>'+esc(sync.msg||'Cloud connected'):(memOnly?'Not saved (browser storage blocked)':'Saved in this browser only')}
+function setSync(state,msg){sync.state=state;sync.msg=msg;updateStatus();if(ui.view==='settings'&&!(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))){const b=$('#syncBadge');if(b)b.innerHTML=syncBadge()}}
+function syncBadge(){return '<span class="dot '+(sync.state==='ok'?'ok':sync.state==='busy'||sync.state==='pending'?'busy':sync.state==='err'?'err':'')+'"></span>'+esc(sbOn()?(sync.msg||'Connected'):'Not connected')}
+function explain(e){const m=String(e&&e.message||e);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Cannot reach Supabase. Check the project URL, or open the app from GitHub Pages (the Claude preview blocks outside connections).';
+  if(/HTTP 401|HTTP 403|Invalid API key|JWT/i.test(m))return 'Supabase rejected the key. Use the anon public key.';
+  if(/HTTP 404|PGRST205|does not exist/i.test(m))return 'Table not found. Run the SQL setup in Supabase first.';
+  return m.slice(0,160)}
+async function sb(path,o){o=o||{};const base=cfg.url.replace(/\/+$/,'').replace(/\/rest\/v1$/,'');
+  const r=await fetch(base+'/rest/v1/'+path,{method:o.method||'GET',headers:Object.assign({apikey:cfg.key,Authorization:'Bearer '+cfg.key,'Content-Type':'application/json'},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});
+  const tx=await r.text();if(!r.ok)throw new Error('HTTP '+r.status+' '+tx.slice(0,200));return tx?JSON.parse(tx):null}
+async function pullCloud(){const rows=await sb('linewatch_state?id=eq.'+encodeURIComponent(cfg.row)+'&select=rev,data,updated_at');return rows&&rows.length?rows[0]:null}
+function adopt(c){S=c.data;S.rev=c.rev;S.dirty=false;sync.conflict=false;save();render()}
+function scheduleSync(){if(!sbOn()||!cfg.auto||sync.conflict)return;clearTimeout(pt);setSync('pending','Unsynced changes');pt=setTimeout(()=>doSync(false),1200)}
+async function doSync(manual){
+  if(!sbOn()||pushing)return;pushing=true;setSync('busy','Syncing…');const e0=edits;
+  try{
+    const c=await pullCloud(),rev=S.rev||0;
+    if(!c){const doc=Object.assign({},S,{rev:1,dirty:false});await sb('linewatch_state',{method:'POST',headers:{Prefer:'return=minimal'},body:{id:cfg.row,rev:1,data:doc}});S.rev=1;S.dirty=edits!==e0;save()}
+    else if(c.rev>rev||c.rev<rev){if(S.dirty||c.rev<rev){sync.conflict=true;setSync('err','Cloud differs from this browser');render();return}adopt(c)}
+    else if(S.dirty||manual){const next=rev+1,doc=Object.assign({},S,{rev:next,dirty:false});
+      const res=await sb('linewatch_state?id=eq.'+encodeURIComponent(cfg.row)+'&rev=eq.'+rev,{method:'PATCH',headers:{Prefer:'return=representation'},body:{rev:next,data:doc,updated_at:new Date().toISOString()}});
+      if(!res||!res.length){sync.conflict=true;setSync('err','Cloud differs from this browser');render();return}
+      S.rev=next;S.dirty=edits!==e0;save()}
+    setSync('ok','Synced '+hhmm());
+  }catch(err){setSync('err',explain(err))}
+  finally{pushing=false;if(S.dirty&&sync.state==='ok')scheduleSync()}
+}
+async function resolveCloud(useCloud){
+  try{const c=await pullCloud();
+    if(useCloud){if(c)adopt(c);else{sync.conflict=false;S.dirty=true}toast('Loaded the cloud version')}
+    else{S.rev=c?c.rev:0;S.dirty=true;sync.conflict=false;await doSync(true);toast('Cloud overwritten with this browser\'s data')}
+    render()}catch(err){setSync('err',explain(err))}}
+
+/* ---------- export (xlsx / csv / Google Sheet) ---------- */
+const fFull=t=>t?toLocalInput(t).replace('T',' '):'';
+function tables(){
+  const mn=id=>{const m=mById(id);return m?m.name:''},ln=id=>{const m=mById(id);return m?lById(m.line).name:''};
+  const pc=id=>{const p=pById(id);return p?p.code:''},pn=id=>{const p=pById(id);return p?p.name:''};
+  return {
+   'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)']].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost])),
+   'Machines':[['Code','Name','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
+   'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
+   'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
+   'Assets':[['Serial','Stores code','Part','Status','Fitted to','Location','Installed','Warranty until']].concat(S.assets.map(a=>[a.serial,pc(a.part),pn(a.part),a.status,a.machine||'',a.loc||'',a.installed?fFull(a.installed).slice(0,10):'',a.warranty?fFull(a.warranty).slice(0,10):''])),
+   'Repairs':[['Repair ID','Serial','Part','Where','Repairer','Country','Status','Sent','Expected back','Cost (LKR)','Reference','Fault']].concat(S.repairs.map(r=>{const a=aById(r.asset)||{};return [r.id,a.serial||'',a.part?pn(a.part):'',r.type,r.repairer,r.country||'',r.status,r.sent?fFull(r.sent).slice(0,10):'',r.expected?fFull(r.expected).slice(0,10):'',r.costLKR||0,r.ref||'',r.fault||'']})),
+   'Purchase orders':[['PO','Stores code','Part','Supplier','Ordered','Received','Unit cost (LKR)','Total (LKR)','Order date','Expected','Status']].concat(S.pos.map(o=>[o.id,pc(o.part),pn(o.part),o.supplier,o.qty,o.recv,o.unit,o.qty*o.unit,fFull(o.date).slice(0,10),o.eta?fFull(o.eta).slice(0,10):'',o.status]))};
+}
+function saveBlob(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+const csvCell=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+function exportCsv(name){const rows=tables()[name];if(!rows)return;saveBlob('line-watch-'+name.toLowerCase().replace(/\s+/g,'-')+'.csv',new Blob(['﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv'}));toast(name+' downloaded')}
+function loadScript(src){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load'));document.head.appendChild(s)})}
+async function exportXlsx(){
+  try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const wb=XLSX.utils.book_new(),T=tables();Object.keys(T).forEach(n=>{const ws=XLSX.utils.aoa_to_sheet(T[n]);ws['!cols']=T[n][0].map((h,i)=>({wch:Math.min(40,Math.max(String(h).length,...T[n].slice(1,40).map(r=>String(r[i]==null?'':r[i]).length))+2)}));XLSX.utils.book_append_sheet(wb,ws,n)});
+    XLSX.writeFile(wb,'line-watch-'+dayKey(NOW())+'.xlsx');toast('Excel file downloaded. In Google Sheets use File > Import.')}
+  catch(e){toast('Could not load the Excel library. Download CSV files instead.')}}
+async function pushSheets(){
+  if(!cfg.sheetsUrl)return toast('Add your Apps Script web app URL first');
+  try{await fetch(cfg.sheetsUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:cfg.sheetsToken,sheets:tables()})});toast('Sent to Google Sheets. Open your sheet to confirm.')}
+  catch(e){toast('Could not reach Google. Check the web app URL.')}}
+const SQL=`create table if not exists linewatch_state (
+  id text primary key,
+  rev integer not null default 1,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table linewatch_state enable row level security;
+create policy "linewatch anon access" on linewatch_state
+  for all to anon using (true) with check (true);`;
+const script=()=>`const TOKEN = '${cfg.sheetsToken}';
+
+function doPost(e) {
+  var d = JSON.parse(e.postData.contents);
+  if (d.token !== TOKEN) return ContentService.createTextOutput('forbidden');
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(d.sheets).forEach(function (name) {
+    var rows = d.sheets[name];
+    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    sh.clear();
+    if (!rows.length) return;
+    sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+    sh.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+    sh.setFrozenRows(1);
+  });
+  return ContentService.createTextOutput('ok');
+}`;
+function copyText(txt){const done=()=>toast('Copied');try{navigator.clipboard.writeText(txt).then(done,()=>toast('Select the text and copy it manually'))}catch(e){toast('Select the text and copy it manually')}}
+
+function vSettings(){
+  const T=tables();
+  return `<div class="grid g-2" style="margin-top:0">
+  <div class="card"><div class="card-h"><h2>Cloud database</h2><small id="syncBadge">${syncBadge()}</small></div><div class="card-b">
+    <p style="margin-top:0;color:var(--muted)">Free Supabase project. The key is typed here and kept in this browser, not in the code or the GitHub repo.</p>
+    <ol class="steps"><li>Create a free project at supabase.com.</li><li>Open SQL Editor, paste the setup below and run it once.</li><li>Open Project Settings &rarr; API and copy the Project URL and the anon public key.</li></ol>
+    <pre class="code" id="sqlBlock">${esc(SQL)}</pre>
+    <div style="margin:8px 0 16px"><button class="btn sm" data-act="copySql">Copy SQL</button></div>
+    <div class="cfg">
+      <div class="field" style="grid-column:1/-1"><label for="c_url">Project URL</label><input id="c_url" value="${esc(cfg.url)}" placeholder="https://abcdxyz.supabase.co" autocomplete="off"></div>
+      <div class="field" style="grid-column:1/-1"><label for="c_key">Anon public key</label><input id="c_key" type="password" value="${esc(cfg.key)}" autocomplete="off"></div>
+      <div class="field"><label for="c_row">Workspace name</label><input id="c_row" value="${esc(cfg.row)}"><span class="hint">Use the same name on every device that should share data.</span></div>
+      <div class="field"><label for="c_auto">Auto sync</label><select id="c_auto"><option value="1"${cfg.auto?' selected':''}>On, after every change</option><option value="0"${cfg.auto?'':' selected'}>Off, sync by hand</option></select></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="cfgSave">Save and connect</button><button class="btn" data-act="syncNow"${sbOn()?'':' disabled'}>Sync now</button><button class="btn danger" data-act="cfgClear"${sbOn()?'':' disabled'}>Disconnect</button></div>
+    <p class="sub" style="color:var(--muted);font-size:12.5px;margin-bottom:0">Anyone who has both your URL and anon key can read and edit this data. Keep them private. Connecting for the first time uploads what you see now, or loads what is already in the cloud.</p>
+  </div></div>
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card"><div class="card-h"><h2>Download</h2></div><div class="card-b">
+      <p style="margin-top:0;color:var(--muted)">One Excel file with ${Object.keys(T).length} sheets (parts, machines, downtime, stock movements, assets, repairs, purchase orders). Import it in Google Sheets with File &rarr; Import &rarr; Upload.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary" data-act="exportXlsx">Download Excel file</button>
+      <select id="csvSel" aria-label="Table">${Object.keys(T).map(n=>`<option>${esc(n)}</option>`).join('')}</select><button class="btn" data-act="exportCsv">Download CSV</button></div></div></div>
+    <div class="card"><div class="card-h"><h2>Send to Google Sheets</h2></div><div class="card-b">
+      <ol class="steps"><li>Create a blank Google Sheet and open Extensions &rarr; Apps Script.</li><li>Paste the script below, then Deploy &rarr; New deployment &rarr; Web app. Run as <b>Me</b>, access <b>Anyone</b>.</li><li>Copy the web app URL and paste it here.</li></ol>
+      <pre class="code" id="scriptBlock">${esc(script())}</pre>
+      <div style="margin:8px 0 14px"><button class="btn sm" data-act="copyScript">Copy script</button></div>
+      <div class="field"><label for="c_sheets">Web app URL</label><input id="c_sheets" value="${esc(cfg.sheetsUrl)}" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" data-act="sheetsSend">Send all tables to my sheet</button></div>
+      <p style="color:var(--muted);font-size:12.5px;margin-bottom:0">Each send replaces the contents of these tabs in your sheet. The app cannot read Google's reply, so open the sheet to confirm.</p>
+    </div></div>
+  </div></div>`;
+}
+
 /* ---------- render ---------- */
 function renderNav(){
-  const items=[['overview','Overview'],['downtime','Downtime'],['parts','Spare parts'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing']];
+  const items=[['overview','Overview'],['downtime','Downtime'],['parts','Spare parts'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
   const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received').length,false]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
 function render(){
   renderNav();
-  const v=VIEWS[ui.view],html={overview:vOverview,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing}[ui.view]();
+  const v=VIEWS[ui.view],html={overview:vOverview,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
   const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
   const y=window.scrollY;
-  $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions">${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
+  $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions">${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
   window.scrollTo(0,y);
   renderDrawer();
 }
-function commit(){save();render()}
+function commit(){edits++;S.dirty=true;save();render();scheduleSync()}
 
 /* ---------- events ---------- */
 const ACT={
@@ -767,7 +910,15 @@ const ACT={
  poAdvance:b=>{const o=S.pos.find(x=>x.id===b.dataset.id);o.status=PO_FLOW[PO_FLOW.indexOf(o.status)+1];commit();toast(o.id+' is now '+o.status)},
  repairAdvance:b=>repairAdvance(b.dataset.id),
  addPartRow:b=>{const w=$('#prows');const d=document.createElement('div');d.className='prow';d.innerHTML=`<select name="pu_part"><option value="">Select part…</option>${partOpts()}</select><input type="number" name="pu_qty" min="1" value="1" aria-label="Quantity">`;w.appendChild(d)},
- resetData:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Click again to reset';setTimeout(()=>{b.dataset.armed='';b.textContent='Reset sample data'},3000);return}S=seed();closeDrawer();commit();toast('Sample data restored')}
+ copySql:()=>copyText(SQL),copyScript:()=>copyText(script()),
+ exportXlsx,exportCsv:()=>exportCsv($('#csvSel').value),
+ sheetsSend:()=>{cfg.sheetsUrl=$('#c_sheets').value.trim();saveCfg();pushSheets()},
+ syncNow:()=>{sync.conflict=false;doSync(true)},
+ useCloud:()=>resolveCloud(true),overwriteCloud:()=>resolveCloud(false),
+ cfgSave:()=>{cfg.url=$('#c_url').value.trim().replace(/\/+$/,'');cfg.key=$('#c_key').value.trim();cfg.row=($('#c_row').value.trim()||'main');cfg.auto=$('#c_auto').value==='1';cfg.sheetsUrl=$('#c_sheets').value.trim();saveCfg();sync.conflict=false;
+   if(!/^https:\/\/.+/.test(cfg.url)||!cfg.key){toast('Enter the project URL and anon key');return}doSync(true);render()},
+ cfgClear:()=>{cfg.url='';cfg.key='';saveCfg();sync={state:'off',msg:'',conflict:false};updateStatus();render();toast('Disconnected. Data stays in this browser.')},
+ resetData:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Click again to reset';setTimeout(()=>{b.dataset.armed='';b.textContent='Reset sample data'},3000);return}const rv=S.rev;S=seed();S.rev=rv;closeDrawer();commit();toast('Sample data restored')}
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.tagName==='TR'&&e.target.closest('button,a,select'))return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b)}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
@@ -776,10 +927,12 @@ function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;co
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
 document.addEventListener('change',onFilter);
-setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
+setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
 render();
+updateStatus();
+if(sbOn())doSync(false);
 })();
 </script>
 </body></html>
