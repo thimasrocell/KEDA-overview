@@ -6,6 +6,7 @@ Spare parts and downtime monitoring for a three-line tile factory. Single-file a
 - Downtime log with causes, spare parts used and mean time to repair
 - Spare parts stock with minimum and reorder levels
 - Serialized assets, repair pipeline (local and abroad) and purchase orders
+- Undo and redo (Ctrl+Z, Ctrl+Shift+Z), and add, edit or remove machines, lines, parts, serial-numbered assets, downtime, purchase orders and repairs
 - Cloud database (Supabase, free tier) and export to Excel, CSV or Google Sheets
 
 ## Run it

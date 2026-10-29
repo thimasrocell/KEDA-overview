@@ -204,6 +204,11 @@ td.r,th.r{text-align:right}
 .note .link{margin-left:auto}
 
 .card-b select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-height:36px}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn.primary.dng{background:var(--crit);border-color:var(--crit);color:#fff}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px 10px}
+.field .chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink);font-weight:400}
+@media (max-width:900px){.btn .lbl{display:none}}
 .code{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px;font:12px/1.5 var(--f-mono);overflow:auto;white-space:pre;max-height:230px;margin:0}
 .cfg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .steps{margin:0 0 12px;padding-left:20px;color:var(--muted)}
@@ -313,7 +318,7 @@ function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.i
 
 function seed(){
   const r=rng(11), now=NOW();
-  const S={v:1,lines:LINES,machines:[],parts:[],events:[],txns:[],assets:[],repairs:[],pos:[]};
+  const S={v:1,lines:LINES.map(l=>Object.assign({},l)),machines:[],parts:[],events:[],txns:[],assets:[],repairs:[],pos:[]};
   MACH0.forEach(m=>S.machines.push({id:m[0],code:'MC-'+m[0],name:m[1]+' '+m[0].split('-')[0],line:m[2],maker:m[3],status:m[4],w:m[5]}));
   PARTS0.forEach((p,i)=>S.parts.push({id:'P'+(i+1),code:p[0],pn:p[1],name:p[2],brand:p[3],cat:p[4],serialized:!!p[5],repairable:!!p[6],cost:p[7],stock:p[8],min:p[9],reorder:p[10],max:p[11],loc:p[12],lead:p[13],supplier:p[14],compat:p[15][0]==='*'?MACH0.map(m=>m[0]):p[15]}));
   const partsFor=(mid,cat)=>S.parts.filter(p=>p.cat===cat&&p.compat.includes(mid)&&!p.serialized);
@@ -370,6 +375,15 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly
 S=load()||seed();
 const ui={view:'overview',partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
+/* ---------- undo / redo ---------- */
+let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
+function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
+lastSnap=snap();
+function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;lastSnap=str;edits++;save();render();
+  if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
+function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
+function redo(){if(!redoStack.length){toast('Nothing to redo');return}const e=redoStack.pop();undoStack.push({s:snap(),l:e.l});restore(e.s,'Redid: '+e.l)}
+
 /* ---------- derived ---------- */
 const mById=id=>S.machines.find(m=>m.id===id);
 const pById=id=>S.parts.find(p=>p.id===id);
@@ -389,7 +403,7 @@ const alertParts=()=>S.parts.filter(p=>stock(p).r<=2).sort((a,b)=>stock(a).r-sto
 function range(days,off=0,pred=()=>true){const to=NOW()-off*DAY,from=to-days*DAY;return S.events.filter(e=>{const s=evStart(e);return s>=from&&s<to&&pred(e)})}
 const sum=a=>a.reduce((x,e)=>x+evMin(e),0);
 const SCHED=22*60;
-function lineAvail(lid,days){const ms=S.machines.filter(m=>m.line===lid).map(m=>m.id);const un=sum(range(days,0,e=>e.type==='Unplanned'&&ms.includes(e.machine)));return 1-un/(ms.length*days*SCHED)}
+function lineAvail(lid,days){const ms=S.machines.filter(m=>m.line===lid&&m.status!=='Decommissioned').map(m=>m.id);if(!ms.length)return 1;const un=sum(range(days,0,e=>e.type==='Unplanned'&&ms.includes(e.machine)));return Math.max(0,1-un/(ms.length*days*SCHED))}
 function mttr(days,off=0){const c=range(days,off,e=>e.type==='Unplanned'&&e.end);return c.length?sum(c)/c.length:0}
 const statusBadge=(label,cls)=>`<span class="chip ${cls}">${esc(label)}</span>`;
 
@@ -403,19 +417,20 @@ const IC={
  repairs:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6z"/>',
  purchasing:'<path d="M3 4h2l2.4 11h11l2-8H6.2M9 20h.01M17 20h.01"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+ undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',redo:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
  plus:'<path d="M12 5v14M5 12h14"/>', x:'<path d="M6 6l12 12M18 6L6 18"/>'};
 const ic=(n,extra='')=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" ${extra} aria-hidden="true">${IC[n]}</svg>`;
 
 /* ---------- layers ---------- */
 let drawerFn=null;
 function openDrawer(fn){drawerFn=fn;$('#drawerLayer').classList.add('open');renderDrawer();$('#drawer').scrollTop=0}
-function renderDrawer(){if(drawerFn)$('#drawer').innerHTML=drawerFn()}
+function renderDrawer(){if(drawerFn){const d=$('#drawer'),y=d.scrollTop;d.innerHTML=drawerFn();d.scrollTop=y}}
 function closeDrawer(){drawerFn=null;$('#drawerLayer').classList.remove('open')}
 let toastT;
-function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+function toast(m){if(pendingLabel&&undoStack.length)undoStack[undoStack.length-1].l=m;pendingLabel=false;const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
 function modal(title,body,onSubmit,opt={}){
   const L=$('#modalLayer');
-  L.innerHTML=`<div class="scrim" data-act="closeModal"></div><form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2><div class="body">${body}<div class="err" hidden></div></div><div class="foot"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary" type="submit">${esc(opt.submit||'Save')}</button></div></form>`;
+  L.innerHTML=`<div class="scrim" data-act="closeModal"></div><form class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2><div class="body">${body}<div class="err" hidden></div></div><div class="foot"><button type="button" class="btn" data-act="closeModal">Cancel</button><button class="btn primary${opt.danger?' dng':''}" type="submit">${esc(opt.submit||'Save')}</button></div></form>`;
   L.classList.add('open');
   const f=$('form',L);
   f.addEventListener('submit',e=>{e.preventDefault();const res=onSubmit(new FormData(f));if(typeof res==='string'){const er=$('.err',f);er.textContent=res;er.hidden=false;return}if(res!==false)closeModal()});
@@ -441,7 +456,7 @@ function logDowntime(mid,resolveId){
   :`
     <div class="field full"><label for="f_m">Machine</label><select id="f_m" name="machine" required>${machOpts(mid)}</select></div>
     <div class="field"><label for="f_type">Type</label><select id="f_type" name="type" data-cause>${opts(['Unplanned','Planned'])}</select></div>
-    <div class="field"><label for="f_cause">Cause</label><select id="f_cause" name="cause">${opts(UNPLANNED)}</select></div>
+    <div class="field"><label for="f_cause">Cause</label><input id="f_cause" name="cause" list="causeList" value="${UNPLANNED[0]}" required><datalist id="causeList">${UNPLANNED.map(c=>`<option value="${c}">`).join('')}</datalist></div>
     <div class="field"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(NOW()-30*MIN)}" required></div>
     <div class="field"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down</option><option value="done">Already back up</option></select></div>
     <div class="field" id="endWrap" hidden><label for="f_end">Back up at</label><input id="f_end" type="datetime-local" name="end" value="${toLocalInput(NOW())}"></div>
@@ -450,12 +465,13 @@ function logDowntime(mid,resolveId){
     <div class="field full"><label for="f_block">Waiting for a spare part?</label><select id="f_block" name="blocked"><option value="">No</option>${S.parts.map(p=>`<option value="${p.id}">${esc(p.code+' · '+p.name+' ('+p.stock+' in stock)')}</option>`).join('')}</select></div>${partRows()}`;
   const f=modal(ev?'Resolve downtime':'Log downtime',body,fd=>{
     const tech=(fd.get('tech')||'').trim(),desc=(fd.get('desc')||'').trim(),used=readParts(fd);
-    if(ev){const end=Date.parse(fd.get('end'));if(!(end>evStart(ev)))return 'Back-in-production time must be after the stop time.';
+    const short=used.find(u=>pById(u.partId).stock<u.qty);if(short){const sp=pById(short.partId);return 'Only '+sp.stock+' × '+sp.code+' in stock. Receive stock first or lower the quantity.'}
+    if(ev){const end=Date.parse(fd.get('end'));if(!(end>evStart(ev)))return 'Back-in-production time must be after the stop time.';if(end>NOW()+MIN)return 'Back-in-production time cannot be in the future.';
       ev.end=new Date(end).toISOString();ev.tech=tech;ev.desc=desc;ev.parts=(ev.parts||[]).concat(used);delete ev.blocked;
       const w=applyParts(used,ev.machine,ev.id,tech||'Maintenance',end);commit();toast('Resolved after '+fDur(evMin(ev))+(w.length?' · stock short for '+w.join(', '):''));return}
     const start=Date.parse(fd.get('start'));if(!start)return 'Enter when the machine stopped.';
     const done=fd.get('state')==='done';const end=done?Date.parse(fd.get('end')):null;
-    if(done&&!(end>start))return 'Back-up time must be after the stop time.';
+    if(done&&!(end>start))return 'Back-up time must be after the stop time.';if(done&&end>NOW()+MIN)return 'Back-up time cannot be in the future.';
     if(!done&&openEv(fd.get('machine')))return 'This machine already has an open downtime. Resolve it first.';
     if(start>NOW()+MIN)return 'Stop time cannot be in the future.';
     const e={id:newId('dt'),machine:fd.get('machine'),type:fd.get('type'),cause:fd.get('cause'),start:new Date(start).toISOString(),end:end?new Date(end).toISOString():null,desc,tech,parts:used};
@@ -465,7 +481,7 @@ function logDowntime(mid,resolveId){
   },{submit:ev?'Mark resolved':'Log downtime'});
   if(!ev){
     const type=$('[data-cause]',f),cause=$('#f_cause',f),st=$('[data-state]',f);
-    type.addEventListener('change',()=>{cause.innerHTML=opts(type.value==='Planned'?PLANNED:UNPLANNED)});
+    type.addEventListener('change',()=>{const l=type.value==='Planned'?PLANNED:UNPLANNED;$('#causeList',f).innerHTML=l.map(c=>`<option value="${c}">`).join('');cause.value=l[0]});
     st.addEventListener('change',()=>{$('#endWrap',f).hidden=st.value!=='done'});
   }
 }
@@ -497,42 +513,162 @@ function stockModal(kind,pid){
       if(diff===0)return 'The count matches the system. Nothing to adjust.';
       p.stock=q;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:diff,machine:'',ref:fd.get('note')||'Count',by:'Stores'});commit();toast('Stock adjusted by '+(diff>0?'+':'')+diff)},{submit:'Adjust'});
 }
-function partForm(){
-  modal('Add spare part',`
-    <div class="field"><label for="f_c">Stores code</label><input id="f_c" name="code" placeholder="EL-0200" required></div>
-    <div class="field"><label for="f_pn">Part number</label><input id="f_pn" name="pn"></div>
-    <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" required></div>
-    <div class="field"><label for="f_b">Brand</label><input id="f_b" name="brand"></div>
-    <div class="field"><label for="f_cat">Category</label><select id="f_cat" name="cat">${opts(['Electrical','Mechanical','Pneumatic','Electronic','General'])}</select></div>
-    <div class="field"><label for="f_cost">Unit value (LKR)</label><input id="f_cost" type="number" name="cost" min="0" value="0"></div>
-    <div class="field"><label for="f_s">Opening stock</label><input id="f_s" type="number" name="stock" min="0" value="0"></div>
-    <div class="field"><label for="f_min">Minimum stock</label><input id="f_min" type="number" name="min" min="0" value="2"></div>
-    <div class="field"><label for="f_re">Reorder level</label><input id="f_re" type="number" name="reorder" min="0" value="4"></div>
-    <div class="field"><label for="f_loc">Location</label><input id="f_loc" name="loc"></div>
-    <div class="field"><label for="f_sup">Supplier</label><select id="f_sup" name="supplier">${opts(SUPPLIERS)}</select></div>
-    <div class="field"><label><input type="checkbox" name="serialized"> Serialized</label></div>
-    <div class="field"><label><input type="checkbox" name="repairable"> Repairable</label></div>
-    <div class="field full"><label for="f_cm">Fits machines</label><select id="f_cm" name="compat" multiple size="5">${machOpts()}</select><span class="hint">Hold Ctrl or Cmd to pick several.</span></div>`,fd=>{
-    const code=fd.get('code').trim().toUpperCase();if(S.parts.some(p=>p.code===code))return 'A part with that stores code already exists.';
-    const min=+fd.get('min'),re=+fd.get('reorder');if(re<min)return 'Reorder level should be at least the minimum stock.';
-    S.parts.push({id:newId('P'),code,pn:fd.get('pn'),name:fd.get('name').trim(),brand:fd.get('brand'),cat:fd.get('cat'),serialized:!!fd.get('serialized'),repairable:!!fd.get('repairable'),cost:+fd.get('cost')||0,stock:+fd.get('stock')||0,min,reorder:re,max:Math.max(re*2,1),loc:fd.get('loc'),lead:30,supplier:fd.get('supplier'),compat:fd.getAll('compat')});
-    commit();toast('Part added')},{submit:'Add part'});
+
+/* ---------- add / edit / remove ---------- */
+function confirmBox(title,text,label,fn){modal(title,'<p style="margin:0;grid-column:1/-1">'+text+'</p>',()=>{fn()},{submit:label,danger:true})}
+const machChecks=sel=>S.lines.map(l=>`<div style="grid-column:1/-1"><div style="font-size:12px;color:var(--muted);margin:2px 0 4px">${esc(l.name)}</div><div class="checks">${S.machines.filter(m=>m.line===l.id).map(m=>`<label class="chk"><input type="checkbox" name="compat" value="${esc(m.id)}"${sel.indexOf(m.id)>=0?' checked':''}> ${esc(m.id)}</label>`).join('')||'<span class="sub">No machines</span>'}</div></div>`).join('');
+function lineForm(id){
+  const l=id?lById(id):null;
+  modal(l?'Edit production line':'Add production line',`
+    <div class="field"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(l?l.name:'')}" required placeholder="Keda 04"></div>
+    <div class="field"><label for="f_c">Short code</label><input id="f_c" name="code" value="${esc(l?l.code:'')}" required maxlength="8" placeholder="K4"></div>`,fd=>{
+    const name=fd.get('name').trim(),code=fd.get('code').trim().toUpperCase();
+    if(l){l.name=name;l.code=code;commit();toast('Line updated');return}
+    let nid='L'+(S.lines.length+1);while(lById(nid))nid+='x';S.lines.push({id:nid,name,code});commit();toast('Line added')},{submit:l?'Save':'Add line'});
 }
+function deleteLine(id){const l=lById(id),n=S.machines.filter(m=>m.line===id).length;
+  if(n){toast('Move or remove the '+n+' machine'+(n>1?'s':'')+' on '+l.name+' first');return}
+  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.lines=S.lines.filter(x=>x.id!==id);commit();toast('Line deleted')})}
+function machineForm(id,lineId){
+  const m=id?mById(id):null;
+  if(!S.lines.length){toast('Add a production line first');return}
+  modal(m?'Edit machine':'Add machine',`
+    <div class="field"><label for="f_c">Code</label><input id="f_c" name="code" value="${esc(m?m.id:'')}" placeholder="K2-06" ${m?'disabled':'required'}></div>
+    <div class="field"><label for="f_l">Production line</label><select id="f_l" name="line">${S.lines.map(l=>`<option value="${l.id}"${l.id===(m?m.line:lineId)?' selected':''}>${esc(l.name)}</option>`).join('')}</select></div>
+    <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(m?m.name:'')}" required></div>
+    <div class="field"><label for="f_mk">Manufacturer</label><input id="f_mk" name="maker" value="${esc(m?m.maker||'':'')}"></div>
+    <div class="field"><label for="f_st">Status</label><select id="f_st" name="status">${opts(['Operational','Maintenance Required','Idle','Decommissioned'],m?m.status:'Operational')}</select></div>`,fd=>{
+    if(m){m.name=fd.get('name').trim();m.line=fd.get('line');m.maker=fd.get('maker');m.status=fd.get('status');commit();toast('Machine updated');return}
+    const code=fd.get('code').trim().toUpperCase();if(!code)return 'Enter a machine code.';if(S.machines.some(x=>x.id===code))return 'That machine code already exists.';
+    S.machines.push({id:code,code:'MC-'+code,name:fd.get('name').trim(),line:fd.get('line'),maker:fd.get('maker'),status:fd.get('status'),w:1});commit();toast('Machine added')},{submit:m?'Save':'Add machine'});
+}
+function deleteMachine(id){const m=mById(id),ev=S.events.filter(e=>e.machine===id).length,as=S.assets.filter(a=>a.machine===id).length;
+  confirmBox('Remove '+esc(m.id)+' '+esc(m.name),'This deletes the machine and its '+ev+' downtime record'+(ev===1?'':'s')+'.'+(as?' '+as+' serial-numbered asset'+(as>1?'s':'')+' fitted to it will become unassigned.':'')+' You can undo this.','Remove machine',()=>{
+    S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});
+    S.machines=S.machines.filter(x=>x.id!==id);closeDrawer();commit();toast('Removed machine '+id)})}
+function partForm(id){
+  const p=id?pById(id):null;
+  modal(p?'Edit spare part':'Add spare part',`
+    <div class="field"><label for="f_c">Stores code</label><input id="f_c" name="code" value="${esc(p?p.code:'')}" placeholder="EL-0200" required></div>
+    <div class="field"><label for="f_pn">Part number</label><input id="f_pn" name="pn" value="${esc(p?p.pn:'')}"></div>
+    <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(p?p.name:'')}" required></div>
+    <div class="field"><label for="f_b">Brand</label><input id="f_b" name="brand" value="${esc(p?p.brand:'')}"></div>
+    <div class="field"><label for="f_cat">Category</label><select id="f_cat" name="cat">${opts(['Electrical','Mechanical','Pneumatic','Electronic','General'],p?p.cat:'Electrical')}</select></div>
+    <div class="field"><label for="f_cost">Unit value (LKR)</label><input id="f_cost" type="number" name="cost" min="0" value="${p?p.cost:0}"></div>
+    <div class="field"><label for="f_s">${p?'In stock':'Opening stock'}</label><input id="f_s" type="number" name="stock" min="0" value="${p?p.stock:0}" ${p?'disabled':''}>${p?'<span class="hint">Use Adjust count to change stock.</span>':''}</div>
+    <div class="field"><label for="f_min">Minimum stock</label><input id="f_min" type="number" name="min" min="0" value="${p?p.min:2}"></div>
+    <div class="field"><label for="f_re">Reorder level</label><input id="f_re" type="number" name="reorder" min="0" value="${p?p.reorder:4}"></div>
+    <div class="field"><label for="f_mx">Maximum stock</label><input id="f_mx" type="number" name="max" min="1" value="${p?p.max:8}"></div>
+    <div class="field"><label for="f_lt">Lead time (days)</label><input id="f_lt" type="number" name="lead" min="0" value="${p?p.lead:30}"></div>
+    <div class="field"><label for="f_loc">Location</label><input id="f_loc" name="loc" value="${esc(p?p.loc:'')}"></div>
+    <div class="field"><label for="f_sup">Supplier</label><input id="f_sup" name="supplier" list="supList" value="${esc(p?p.supplier:'')}">${supList()}</div>
+    <div class="field"><label class="chk"><input type="checkbox" name="serialized"${p&&p.serialized?' checked':''}> Tracked by serial number</label></div>
+    <div class="field"><label class="chk"><input type="checkbox" name="repairable"${p&&p.repairable?' checked':''}> Can be repaired</label></div>
+    <div class="field full"><label>Fits machines</label></div>${machChecks(p?p.compat:[])}`,fd=>{
+    const code=fd.get('code').trim().toUpperCase();if(!code)return 'Enter a stores code.';
+    if(S.parts.some(x=>x.code===code&&x!==p))return 'A part with that stores code already exists.';
+    const min=+fd.get('min')||0,re=+fd.get('reorder')||0,mx=Math.max(+fd.get('max')||0,re,1);
+    if(re<min)return 'Reorder level should be at least the minimum stock.';
+    const ser=!!fd.get('serialized');if(p&&p.serialized&&!ser&&S.assets.some(a=>a.part===p.id))return 'This part has serial-numbered assets. Remove them first or keep it serialized.';
+    const o={code,pn:fd.get('pn'),name:fd.get('name').trim(),brand:fd.get('brand'),cat:fd.get('cat'),serialized:ser,repairable:!!fd.get('repairable'),cost:+fd.get('cost')||0,min,reorder:re,max:mx,lead:+fd.get('lead')||0,loc:fd.get('loc'),supplier:fd.get('supplier'),compat:fd.getAll('compat')};
+    if(p){Object.assign(p,o);commit();toast('Part updated');return}
+    S.parts.push(Object.assign({id:newId('P'),stock:+fd.get('stock')||0},o));commit();toast('Part added')},{submit:p?'Save':'Add part'});
+}
+function deletePart(id){const p=pById(id),as=S.assets.filter(a=>a.part===id).length,po=openPO(id).length;
+  if(as){toast('Remove its '+as+' serial-numbered asset'+(as>1?'s':'')+' first');return}
+  if(po){toast('Cancel or receive its open purchase order first');return}
+  const tx=S.txns.filter(t=>t.partId===id).length;
+  confirmBox('Delete '+esc(p.code)+' '+esc(p.name),'This deletes the part, its '+tx+' stock movement'+(tx===1?'':'s')+' and its links to machines. Past downtime records stay but will no longer list this part. You can undo this.','Delete part',()=>{
+    S.parts=S.parts.filter(x=>x.id!==id);S.txns=S.txns.filter(t=>t.partId!==id);S.pos=S.pos.filter(o=>o.part!==id);
+    S.events.forEach(e=>{e.parts=(e.parts||[]).filter(u=>u.partId!==id);if(e.blocked===id)delete e.blocked});closeDrawer();commit();toast('Deleted part '+p.code)})}
+const ASSET_ST=['Active on line','In stores','Under repair (local)','Under repair (abroad)','Scrapped'];
+function assetForm(id,partId){
+  const a=id?aById(id):null,sp=S.parts.filter(p=>p.serialized);
+  if(!sp.length){toast('Tick "Tracked by serial number" on a part first');return}
+  const d=t=>t?toLocalInput(t).slice(0,10):'';
+  modal(a?'Edit asset':'Add serial-numbered asset',`
+    <div class="field full"><label for="f_p">Part</label><select id="f_p" name="part">${opts(sp.map(p=>[p.id,p.code+' · '+p.name]),a?a.part:partId)}</select></div>
+    <div class="field"><label for="f_sn">Serial number</label><input id="f_sn" name="serial" value="${esc(a?a.serial:'')}" required></div>
+    <div class="field"><label for="f_st">Status</label><select id="f_st" name="status">${opts(ASSET_ST,a?a.status:'In stores')}</select></div>
+    <div class="field"><label for="f_m">Fitted to machine</label><select id="f_m" name="machine"><option value="">None</option>${machOpts(a?a.machine:'')}</select></div>
+    <div class="field"><label for="f_loc">Location</label><input id="f_loc" name="loc" value="${esc(a?a.loc:'')}" placeholder="Cabinet, shelf, repairer…"></div>
+    <div class="field"><label for="f_in">Installed on</label><input id="f_in" type="date" name="installed" value="${d(a&&a.installed)}"></div>
+    <div class="field"><label for="f_w">Warranty until</label><input id="f_w" type="date" name="warranty" value="${d(a&&a.warranty)}"></div>`,fd=>{
+    const serial=fd.get('serial').trim();if(!serial)return 'Enter the serial number.';
+    if(S.assets.some(x=>x.serial.toLowerCase()===serial.toLowerCase()&&x!==a))return 'That serial number is already recorded.';
+    const o={part:fd.get('part'),serial,status:fd.get('status'),machine:fd.get('machine'),loc:fd.get('loc'),installed:Date.parse(fd.get('installed'))||null,warranty:Date.parse(fd.get('warranty'))||null};
+    if(a){Object.assign(a,o);commit();toast('Asset updated');return}
+    S.assets.push(Object.assign({id:newId('A')},o));commit();toast('Asset added')},{submit:a?'Save':'Add asset'});
+}
+function deleteAsset(id){const a=aById(id),rp=S.repairs.filter(r=>r.asset===id).length;
+  confirmBox('Delete '+esc(a.serial),'This removes the asset'+(rp?' and its '+rp+' repair record'+(rp>1?'s':''):'')+'. You can undo this.','Delete asset',()=>{S.assets=S.assets.filter(x=>x.id!==id);S.repairs=S.repairs.filter(r=>r.asset!==id);commit();toast('Deleted asset '+a.serial)})}
+function editEvent(id){
+  const e=S.events.find(x=>x.id===id);if(!e)return;
+  modal('Edit downtime',`
+    <div class="field full"><label for="f_m">Machine</label><select id="f_m" name="machine">${machOpts(e.machine)}</select></div>
+    <div class="field"><label for="f_type">Type</label><select id="f_type" name="type">${opts(['Unplanned','Planned'],e.type)}</select></div>
+    <div class="field"><label for="f_cause">Cause</label><input id="f_cause" name="cause" list="causeList" value="${esc(e.cause)}" required><datalist id="causeList">${UNPLANNED.concat(PLANNED).map(c=>`<option value="${c}">`).join('')}</datalist></div>
+    <div class="field"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(evStart(e))}" required></div>
+    <div class="field"><label for="f_end">Back up at</label><input id="f_end" type="datetime-local" name="end" value="${e.end?toLocalInput(Date.parse(e.end)):''}"><span class="hint">Leave empty if still down.</span></div>
+    <div class="field"><label for="f_tech">Technician</label><input id="f_tech" name="tech" value="${esc(e.tech||'')}"></div>
+    <div class="field"><label for="f_block">Waiting for part</label><select id="f_block" name="blocked"><option value="">No</option>${S.parts.map(p=>`<option value="${p.id}"${e.blocked===p.id?' selected':''}>${esc(p.code+' · '+p.name)}</option>`).join('')}</select></div>
+    <div class="field full"><label for="f_desc">What happened</label><textarea id="f_desc" name="desc">${esc(e.desc||'')}</textarea></div>
+    <div class="field full"><span class="hint">Spares used: ${(e.parts||[]).map(u=>{const p=pById(u.partId);return p?u.qty+'× '+esc(p.code):''}).filter(Boolean).join(', ')||'none'}. Editing does not change stock. Use Adjust count on the part if needed.</span></div>`,fd=>{
+    const start=Date.parse(fd.get('start')),end=fd.get('end')?Date.parse(fd.get('end')):null;
+    if(!start)return 'Enter when the machine stopped.';if(end&&!(end>start))return 'Back-up time must be after the stop time.';
+    if(end&&end>NOW()+MIN)return 'Back-up time cannot be in the future.';if(start>NOW()+MIN)return 'Stop time cannot be in the future.';
+    const mid=fd.get('machine');if(!end&&S.events.some(x=>x!==e&&!x.end&&x.machine===mid))return 'This machine already has another open downtime.';
+    e.machine=mid;e.type=fd.get('type');e.cause=fd.get('cause').trim();e.start=new Date(start).toISOString();e.end=end?new Date(end).toISOString():null;e.tech=fd.get('tech');e.desc=fd.get('desc');
+    if(fd.get('blocked')&&!e.end)e.blocked=fd.get('blocked');else delete e.blocked;commit();toast('Downtime updated')},{submit:'Save'});
+}
+function poEdit(id){
+  const o=S.pos.find(x=>x.id===id),locked=o.status==='Received'||o.status==='Partially received';
+  modal('Edit '+o.id,`
+    <div class="field full"><label>Part</label><input value="${esc(pById(o.part).name)}" disabled></div>
+    <div class="field"><label for="f_q">Quantity ordered</label><input id="f_q" type="number" name="qty" min="${Math.max(1,o.recv)}" value="${o.qty}" required></div>
+    <div class="field"><label for="f_u">Unit cost (LKR)</label><input id="f_u" type="number" name="unit" min="0" value="${o.unit}"></div>
+    <div class="field"><label for="f_s">Supplier</label><input id="f_s" name="supplier" list="supList" value="${esc(o.supplier)}" required>${supList()}</div>
+    <div class="field"><label for="f_e">Expected delivery</label><input id="f_e" type="date" name="eta" value="${o.eta?toLocalInput(o.eta).slice(0,10):''}"></div>
+    <div class="field"><label for="f_st">Status</label><select id="f_st" name="status" ${locked?'disabled':''}>${opts(locked?[o.status]:['Draft','Requested','Approved','Ordered','Cancelled'],o.status)}</select>${locked?'<span class="hint">Received orders keep their status.</span>':''}</div>`,fd=>{
+    const q=parseInt(fd.get('qty'));if(!(q>=Math.max(1,o.recv)))return 'Quantity cannot be below what was already received ('+o.recv+').';
+    o.qty=q;o.unit=+fd.get('unit')||0;o.supplier=fd.get('supplier').trim();o.eta=Date.parse(fd.get('eta'))||null;if(!locked)o.status=fd.get('status');
+    if(o.recv>=o.qty&&o.recv>0)o.status='Received';commit();toast(o.id+' updated')},{submit:'Save'});
+}
+function deletePO(id){const o=S.pos.find(x=>x.id===id);
+  confirmBox('Delete '+esc(o.id),'This removes the purchase order record.'+(o.recv?' Stock already received stays in stores.':'')+' You can undo this.','Delete PO',()=>{S.pos=S.pos.filter(x=>x.id!==id);commit();toast('Deleted '+id)})}
+function repairEdit(id){
+  const r=S.repairs.find(x=>x.id===id),a=aById(r.asset);
+  modal('Edit repair',`
+    <div class="field full"><label>Asset</label><input value="${esc(a?a.serial:'')}" disabled></div>
+    <div class="field"><label for="f_t">Where</label><select id="f_t" name="type">${opts(['Local','Abroad'],r.type)}</select></div>
+    <div class="field"><label for="f_rp">Repairer</label><input id="f_rp" name="repairer" value="${esc(r.repairer)}" required></div>
+    <div class="field"><label for="f_co">Country</label><input id="f_co" name="country" value="${esc(r.country||'')}"></div>
+    <div class="field"><label for="f_ex">Expected back</label><input id="f_ex" type="date" name="eta" value="${r.expected?toLocalInput(r.expected).slice(0,10):''}"></div>
+    <div class="field"><label for="f_c">Cost (LKR)</label><input id="f_c" type="number" name="cost" min="0" value="${r.costLKR||0}"></div>
+    <div class="field"><label for="f_rf">Reference / RMA</label><input id="f_rf" name="ref" value="${esc(r.ref||'')}"></div>
+    <div class="field full"><label for="f_f">Fault</label><textarea id="f_f" name="fault">${esc(r.fault||'')}</textarea></div>`,fd=>{
+    r.type=fd.get('type');r.repairer=fd.get('repairer');r.country=fd.get('country');r.expected=Date.parse(fd.get('eta'))||null;r.costLKR=+fd.get('cost')||0;r.ref=fd.get('ref');r.fault=fd.get('fault');commit();toast('Repair updated')},{submit:'Save'});
+}
+function deleteRepair(id){const r=S.repairs.find(x=>x.id===id),a=aById(r.asset);
+  confirmBox('Delete repair record','This removes the repair'+(a?' for '+esc(a.serial):'')+'.'+(a&&/Under repair/.test(a.status)?' The asset will be set back to "In stores".':'')+' You can undo this.','Delete repair',()=>{
+    if(a&&/Under repair/.test(a.status)){a.status='In stores'}S.repairs=S.repairs.filter(x=>x.id!==id);commit();toast('Repair deleted')})}
+
 
 /* ---------- actions: purchasing & repairs ---------- */
 const PO_FLOW=['Draft','Requested','Approved','Ordered','Received'];
 function poForm(pid){
-  const p=pid?pById(pid):null;
+  const p=pid?pById(pid):(S.parts[0]||null);
   const sugg=p?Math.max(1,(p.max||p.reorder*2)-p.stock-onOrder(p.id)):1;
-  modal('New purchase order',`
-    <div class="field full"><label for="f_p">Part</label><select id="f_p" name="part">${partOpts(pid)}</select></div>
+  const pf=modal('New purchase order',`
+    <div class="field full"><label for="f_p">Part</label><select id="f_p" name="part">${partOpts(p&&p.id)}</select></div>
     <div class="field"><label for="f_q">Quantity</label><input id="f_q" type="number" name="qty" min="1" value="${sugg}" required></div>
     <div class="field"><label for="f_u">Unit cost (LKR)</label><input id="f_u" type="number" name="unit" min="0" value="${p?p.cost:0}"></div>
-    <div class="field"><label for="f_s">Supplier</label><select id="f_s" name="supplier">${opts(SUPPLIERS,p?p.supplier:'')}</select></div>
+    <div class="field"><label for="f_s">Supplier</label><input id="f_s" name="supplier" list="supList" value="${esc(p?p.supplier:'')}" required>${supList()}</div>
     <div class="field"><label for="f_e">Expected delivery</label><input id="f_e" type="date" name="eta" value="${new Date(NOW()+(p?p.lead:30)*DAY).toISOString().slice(0,10)}"></div>`,fd=>{
     const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';
-    const n=S.pos.length+89;S.pos.push({id:'PO-2026-'+String(100+n-88).padStart(3,'0'),part:fd.get('part'),supplier:fd.get('supplier'),qty:q,recv:0,unit:+fd.get('unit')||0,date:NOW(),eta:Date.parse(fd.get('eta'))||null,status:'Requested'});
+    const mx=S.pos.reduce((a,o)=>{const m=/(\d+)$/.exec(o.id);return m?Math.max(a,+m[1]):a},0);S.pos.push({id:'PO-'+new Date().getFullYear()+'-'+String(mx+1).padStart(3,'0'),part:fd.get('part'),supplier:fd.get('supplier'),qty:q,recv:0,unit:+fd.get('unit')||0,date:NOW(),eta:Date.parse(fd.get('eta'))||null,status:'Requested'});
     commit();toast('Purchase order created')},{submit:'Create PO'});
+  $('#f_p',pf).addEventListener('change',()=>{const q=pById($('#f_p',pf).value);if(!q)return;$('#f_u',pf).value=q.cost;$('#f_s',pf).value=q.supplier||'';$('#f_q',pf).value=Math.max(1,(q.max||q.reorder*2)-q.stock-onOrder(q.id));$('#f_e',pf).value=new Date(NOW()+q.lead*DAY).toISOString().slice(0,10)});
 }
 function poReceive(id){
   const o=S.pos.find(x=>x.id===id),p=pById(o.part),left=o.qty-o.recv;
@@ -542,6 +678,7 @@ function poReceive(id){
     o.recv+=q;p.stock+=q;o.status=o.recv>=o.qty?'Received':'Partially received';
     S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Purchase',qty:q,machine:'',ref:o.id,by:'Stores'});commit();toast(q+' received into stock')},{submit:'Receive'});
 }
+const supList=()=>'<datalist id="supList">'+[...new Set(SUPPLIERS.concat(S.parts.map(x=>x.supplier),S.pos.map(o=>o.supplier)).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join('')+'</datalist>';
 const R_FLOW=['Requested','At repairer','Completed','Returned'];
 function repairForm(aid){
   const cand=S.assets.filter(a=>pById(a.part).repairable&&!/Under repair/.test(a.status));
@@ -565,15 +702,7 @@ function repairAdvance(id){
   if(r.status==='Returned'){r.returned=NOW();a.status='In stores';a.machine='';a.loc='Electrical stores (returned from repair)';const p=pById(a.part);p.stock+=1;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Repair return',qty:1,machine:'',ref:r.id,by:'Stores'})}
   commit();toast('Repair moved to '+r.status);
 }
-function machineForm(){
-  modal('Add machine',`
-    <div class="field"><label for="f_c">Code</label><input id="f_c" name="code" placeholder="K2-06" required></div>
-    <div class="field"><label for="f_l">Production line</label><select id="f_l" name="line">${S.lines.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join('')}</select></div>
-    <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" required></div>
-    <div class="field full"><label for="f_mk">Manufacturer</label><input id="f_mk" name="maker"></div>`,fd=>{
-    const code=fd.get('code').trim().toUpperCase();if(S.machines.some(m=>m.id===code))return 'That machine code already exists.';
-    S.machines.push({id:code,code:'MC-'+code,name:fd.get('name').trim(),line:fd.get('line'),maker:fd.get('maker'),status:'Operational',w:1});commit();toast('Machine added')},{submit:'Add machine'});
-}
+
 
 /* ---------- views ---------- */
 const VIEWS={
@@ -618,7 +747,7 @@ function vOverview(){
   const top=S.machines.map(m=>({m,v:sum(range(30,0,e=>e.type==='Unplanned'&&e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
   return `${alerts}
   <div class="grid g-kpi">
-    ${kpi('Machines down now',down.length,'/ '+S.machines.length,mt?mt+' more need maintenance':'None flagged for maintenance',down.length?'bad':'good')}
+    ${kpi('Machines down now',down.length,'/ '+S.machines.filter(m=>m.status!=='Decommissioned').length,mt?mt+' more need maintenance':'None flagged for maintenance',down.length?'bad':'good')}
     ${kpi('Unplanned downtime',fHrs(sum(cur)),'h',delta(sum(cur),sum(prev)))}
     ${kpi('Breakdowns',cur.length,'',delta(cur.length,prev.length))}
     ${kpi('Mean time to repair',m1?fDur(m1):'–','',m0?delta(m1,m0):'')}
@@ -648,8 +777,8 @@ function dtResults(){
   const byM={};un.forEach(e=>byM[e.machine]=(byM[e.machine]||0)+evMin(e));
   const ms=Object.entries(byM).sort((a,b)=>b[1]-a[1]).slice(0,7);
   const spareHit=evs.filter(e=>e.parts&&e.parts.length).length;
-  const rows=evs.slice(0,80).map(e=>{const m=mById(e.machine);const parts=(e.parts||[]).map(u=>{const p=pById(u.partId);return p?`${u.qty}× ${p.code}`:''}).join(', ');
-    return `<tr><td><div class="mono">${fDT(evStart(e))}</div><div class="sub">${esc(e.tech||'')}</div></td><td><button class="link" data-act="openMachine" data-id="${esc(e.machine)}">${esc(e.machine)}</button><div class="sub">${esc(m?m.name:'')}</div></td><td>${statusBadge(e.type,e.type==='Planned'?'info':'crit')}</td><td><div>${esc(e.cause)}</div><div class="sub">${esc(e.desc||'')}</div></td><td class="r mono">${e.end?fDur(evMin(e)):statusBadge('Down '+fDur(evMin(e)),'crit')}</td><td class="mono">${esc(parts)||'<span class="sub">–</span>'}${e.blocked?`<div class="sub">Waiting: ${esc((pById(e.blocked)||{}).code||'')}</div>`:''}</td><td class="r" style="white-space:nowrap">${e.end?'':`<button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button> `}<button class="btn sm ghost danger" data-act="deleteEvent" data-id="${e.id}" aria-label="Delete event">Delete</button></td></tr>`}).join('');
+  const lim=ui.dtLimit||60;const rows=evs.slice(0,lim).map(e=>{const m=mById(e.machine);const parts=(e.parts||[]).map(u=>{const p=pById(u.partId);return p?`${u.qty}× ${p.code}`:''}).join(', ');
+    return `<tr><td><div class="mono">${fDT(evStart(e))}</div><div class="sub">${esc(e.tech||'')}</div></td><td><button class="link" data-act="openMachine" data-id="${esc(e.machine)}">${esc(e.machine)}</button><div class="sub">${esc(m?m.name:'')}</div></td><td>${statusBadge(e.type,e.type==='Planned'?'info':'crit')}</td><td><div>${esc(e.cause)}</div><div class="sub">${esc(e.desc||'')}</div></td><td class="r mono">${e.end?fDur(evMin(e)):statusBadge('Down '+fDur(evMin(e)),'crit')}</td><td class="mono">${esc(parts)||'<span class="sub">–</span>'}${e.blocked?`<div class="sub">Waiting: ${esc((pById(e.blocked)||{}).code||'')}</div>`:''}</td><td class="r" style="white-space:nowrap">${e.end?'':`<button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button> `}<button class="btn sm ghost" data-act="editEvent" data-id="${e.id}">Edit</button> <button class="btn sm ghost danger" data-act="deleteEvent" data-id="${e.id}" aria-label="Delete event">Delete</button></td></tr>`}).join('');
   return `<div class="grid g-kpi">
     ${kpi('Stops',evs.length,'',un.length+' unplanned, '+(evs.length-un.length)+' planned')}
     ${kpi('Unplanned',fHrs(sum(un)),'h','')}
@@ -661,7 +790,7 @@ function dtResults(){
     <div class="card"><div class="card-h"><h2>By cause</h2></div><div class="card-b">${hbars(causes.map(([k,v])=>({l:k,v,t:fDur(v),c:PLANNED.includes(k)?'var(--plan)':'var(--crit)'})),causes[0]?causes[0][1]:1)}</div></div>
     <div class="card"><div class="card-h"><h2>By machine</h2><small>unplanned</small></div><div class="card-b">${hbars(ms.map(([k,v])=>({l:k+' '+((mById(k)||{}).name||'').replace(/ [A-Z]\d?$/,''),v,t:fDur(v),click:k})),ms[0]?ms[0][1]:1)}</div></div>
   </div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Stopped</th><th>Machine</th><th>Type</th><th>Cause</th><th class="r">Duration</th><th>Spares</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7"><div class="empty">No stops match these filters.</div></td></tr>'}</tbody></table></div></div>`;
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Stopped</th><th>Machine</th><th>Type</th><th>Cause</th><th class="r">Duration</th><th>Spares</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7"><div class="empty">No stops match these filters.</div></td></tr>'}</tbody></table></div></div>${evs.length>lim?`<div style="text-align:center;padding:14px"><button class="btn" data-act="moreEvents">Show more (${evs.length-lim} left)</button></div>`:''}`;
 }
 function vDowntime(){
   const od=openEvents().map(e=>{const m=mById(e.machine);return `<div class="alert"><div class="grow"><b>${esc(m.id)} ${esc(m.name)} is down.</b> ${esc(e.cause)}. ${esc(e.desc||'')}<div class="sub">Since ${fDT(evStart(e))}</div></div><span class="timer num">${fDur(evMin(e))}</span><button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button></div>`}).join('');
@@ -696,13 +825,13 @@ function vParts(){
 
 function vMachines(){
   return S.lines.map(l=>{const ms=S.machines.filter(m=>m.line===l.id);
-    return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>${esc(l.name)}</h2><small>${ms.length} machines</small></div><div class="tbl-wrap"><table><thead><tr><th>Machine</th><th>Status</th><th class="r">Stops (90d)</th><th class="r">Unplanned (90d)</th><th class="r">Avg repair</th><th>Fitted spares</th></tr></thead><tbody>${ms.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned'),cl=ev.filter(e=>e.end);return `<tr class="click" data-act="openMachine" data-id="${esc(m.id)}" tabindex="0"><td><div class="name">${esc(m.name)}</div><div class="sub mono">${esc(m.id)} · ${esc(m.maker||'')}</div></td><td>${stChip(mStatus(m))}</td><td class="r mono">${ev.length}</td><td class="r mono">${fDur(sum(ev))}</td><td class="r mono">${cl.length?fDur(sum(cl)/cl.length):'–'}</td><td class="mono">${S.parts.filter(p=>p.compat.includes(m.id)).length} parts</td></tr>`}).join('')}</tbody></table></div></div>`}).join('');
+    return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>${esc(l.name)}</h2><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><small>${ms.length} machines</small><button class="btn sm" data-act="newMachine" data-id="${l.id}">Add machine</button><button class="btn sm ghost" data-act="editLine" data-id="${l.id}">Edit line</button><button class="btn sm ghost danger" data-act="deleteLine" data-id="${l.id}">Delete line</button></div></div><div class="tbl-wrap"><table><thead><tr><th>Machine</th><th>Status</th><th class="r">Stops (90d)</th><th class="r">Unplanned (90d)</th><th class="r">Avg repair</th><th>Fitted spares</th></tr></thead><tbody>${ms.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned'),cl=ev.filter(e=>e.end);return `<tr class="click" data-act="openMachine" data-id="${esc(m.id)}" tabindex="0"><td><div class="name">${esc(m.name)}</div><div class="sub mono">${esc(m.id)} · ${esc(m.maker||'')}</div></td><td>${stChip(mStatus(m))}</td><td class="r mono">${ev.length}</td><td class="r mono">${fDur(sum(ev))}</td><td class="r mono">${cl.length?fDur(sum(cl)/cl.length):'–'}</td><td class="mono">${S.parts.filter(p=>p.compat.includes(m.id)).length} parts</td></tr>`}).join('')}</tbody></table></div></div>`}).join('');
 }
 
 function assetsResults(){
   const list=S.assets.filter(a=>!ui.assetSt||a.status===ui.assetSt);
   return `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Serial</th><th>Part</th><th>Status</th><th>Fitted to</th><th>Location</th><th class="r">Running</th><th>Warranty</th><th></th></tr></thead><tbody>${list.map(a=>{const p=pById(a.part),m=mById(a.machine),under=/Under repair/.test(a.status);const wOk=a.warranty&&a.warranty>NOW();
-   return `<tr><td class="mono name">${esc(a.serial)}</td><td><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div></td><td>${statusBadge(a.status,a.status==='Active on line'?'ok':a.status==='In stores'?'info':'warn')}</td><td>${m?`<button class="link" data-act="openMachine" data-id="${esc(m.id)}">${esc(m.id)}</button>`:'<span class="sub">–</span>'}</td><td>${esc(a.loc)}</td><td class="r mono">${a.installed&&a.status==='Active on line'?Math.round((NOW()-a.installed)/DAY)+' d':'–'}</td><td>${a.warranty?(wOk?statusBadge('Until '+fDate(a.warranty)+' '+new Date(a.warranty).getFullYear(),'ok'):statusBadge('Expired','')):'–'}</td><td class="r">${p.repairable&&!under?`<button class="btn sm" data-act="newRepair" data-id="${a.id}">Send for repair</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="8"><div class="empty">No assets.</div></td></tr>'}</tbody></table></div></div>`;
+   return `<tr><td class="mono name">${esc(a.serial)}</td><td><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div></td><td>${statusBadge(a.status,a.status==='Active on line'?'ok':a.status==='In stores'?'info':'warn')}</td><td>${m?`<button class="link" data-act="openMachine" data-id="${esc(m.id)}">${esc(m.id)}</button>`:'<span class="sub">–</span>'}</td><td>${esc(a.loc)}</td><td class="r mono">${a.installed&&a.status==='Active on line'?Math.round((NOW()-a.installed)/DAY)+' d':'–'}</td><td>${a.warranty?(wOk?statusBadge('Until '+fDate(a.warranty)+' '+new Date(a.warranty).getFullYear(),'ok'):statusBadge('Expired','')):'–'}</td><td class="r" style="white-space:nowrap">${p.repairable&&!under?`<button class="btn sm" data-act="newRepair" data-id="${a.id}">Send for repair</button> `:''}<button class="btn sm ghost" data-act="editAsset" data-id="${a.id}">Edit</button> <button class="btn sm ghost danger" data-act="deleteAsset" data-id="${a.id}">Delete</button></td></tr>`}).join('')||'<tr><td colspan="8"><div class="empty">No assets.</div></td></tr>'}</tbody></table></div></div>`;
 }
 function vAssets(){
   const sts=[...new Set(S.assets.map(a=>a.status))];
@@ -712,18 +841,18 @@ function vAssets(){
 function vRepairs(){
   const cols=R_FLOW.map(st=>{const list=S.repairs.filter(r=>r.status===st).sort((a,b)=>(b.sent||b.returned||0)-(a.sent||a.returned||0));
     return `<div class="col"><h3>${st==='Completed'?'Ready / in transit':st}<span>${list.length}</span></h3>${list.map(r=>{const a=aById(r.asset),p=pById(a.part),late=r.expected&&r.expected<NOW()&&st!=='Returned';
-      return `<div class="rc"><div class="t">${esc(p.name)}</div><div class="m mono"><span>${esc(a.serial)}</span>${r.ref?`<span>${esc(r.ref)}</span>`:''}</div><div>${statusBadge(r.type,r.type==='Abroad'?'info':'')} <span class="sub">${esc(r.repairer)}, ${esc(r.country)}</span></div><div class="sub">${esc(r.fault||'')}</div><div class="m"><span>${r.sent?'Sent '+fDate(r.sent):'Not sent yet'}</span>${r.expected&&st!=='Returned'?`<span class="${late?'up':''}">Due ${fDate(r.expected)}${late?' (overdue)':''}</span>`:''}${r.costLKR?`<span class="mono">${lkr(r.costLKR)}</span>`:''}</div>${st!=='Returned'?`<button class="btn sm" data-act="repairAdvance" data-id="${r.id}">${{Requested:'Mark sent',['At repairer']:'Repair done',Completed:'Received back in stores'}[st]}</button>`:''}</div>`}).join('')||'<div class="sub" style="padding:6px 4px">Nothing here.</div>'}</div>`}).join('');
+      return `<div class="rc"><div class="t">${esc(p.name)}</div><div class="m mono"><span>${esc(a.serial)}</span>${r.ref?`<span>${esc(r.ref)}</span>`:''}</div><div>${statusBadge(r.type,r.type==='Abroad'?'info':'')} <span class="sub">${esc(r.repairer)}, ${esc(r.country)}</span></div><div class="sub">${esc(r.fault||'')}</div><div class="m"><span>${r.sent?'Sent '+fDate(r.sent):'Not sent yet'}</span>${r.expected&&st!=='Returned'?`<span class="${late?'up':''}">Due ${fDate(r.expected)}${late?' (overdue)':''}</span>`:''}${r.costLKR?`<span class="mono">${lkr(r.costLKR)}</span>`:''}</div>${st!=='Returned'?`<button class="btn sm" data-act="repairAdvance" data-id="${r.id}">${{Requested:'Mark sent',['At repairer']:'Repair done',Completed:'Received back in stores'}[st]}</button>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" data-act="editRepair" data-id="${r.id}">Edit</button><button class="btn sm ghost danger" data-act="deleteRepair" data-id="${r.id}">Delete</button></div></div>`}).join('')||'<div class="sub" style="padding:6px 4px">Nothing here.</div>'}</div>`}).join('');
   const spent=S.repairs.reduce((a,r)=>a+(r.costLKR||0),0);
   return `<div class="grid g-kpi"><div style="display:contents">${kpi('Open repairs',S.repairs.filter(r=>r.status!=='Returned').length,'','')}${kpi('Overseas',S.repairs.filter(r=>r.type==='Abroad'&&r.status!=='Returned').length,'','')}${kpi('Overdue',S.repairs.filter(r=>r.expected&&r.expected<NOW()&&r.status!=='Returned').length,'','',S.repairs.some(r=>r.expected&&r.expected<NOW()&&r.status!=='Returned')?'bad':'good')}${kpi('Repair spend',lkrK(spent),'','all requests')}</div></div><div class="kan">${cols}</div>`;
 }
 
 function vPurchasing(){
   const need=alertParts().filter(p=>onOrder(p.id)<=0);
-  const list=S.pos.slice().sort((a,b)=>b.date-a.date).filter(o=>!ui.poFilter||(ui.poFilter==='open'?o.status!=='Received':o.status==='Received'));
+  const list=S.pos.slice().sort((a,b)=>b.date-a.date).filter(o=>!ui.poFilter||(ui.poFilter==='open'?(o.status!=='Received'&&o.status!=='Cancelled'):o.status==='Received'));
   return `${need.length?`<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>Needs ordering</h2><small>Below reorder level with nothing on order</small></div><div class="card-b row-list">${need.map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.stock} left · lead time ${p.lead} d · ${esc(p.supplier)}</div></div>${statusBadge(s.k,s.c)}<button class="btn sm primary" data-act="newPO" data-id="${p.id}">Raise PO</button></div>`}).join('')}</div></div>`:''}
   <div class="filters"><div class="seg" role="group" aria-label="Filter">${[['','All'],['open','Open'],['done','Received']].map(([v,l])=>`<button data-act="setF" data-k="poFilter" data-v="${v}" aria-pressed="${ui.poFilter===v}">${l}</button>`).join('')}</div></div>
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>PO</th><th>Part</th><th>Supplier</th><th class="r">Qty</th><th class="r">Value</th><th>Expected</th><th>Status</th><th></th></tr></thead><tbody>${list.map(o=>{const p=pById(o.part),late=o.eta&&o.eta<NOW()&&o.status!=='Received';const i=PO_FLOW.indexOf(o.status);
-   return `<tr><td class="mono name">${esc(o.id)}<div class="sub">${fDate(o.date)}</div></td><td><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div></td><td>${esc(o.supplier)}</td><td class="r mono">${o.recv}/${o.qty}</td><td class="r mono">${lkr(o.qty*o.unit)}</td><td class="${late?'up':''}">${o.eta?fDate(o.eta):'–'}${late?' (late)':''}</td><td>${statusBadge(o.status,o.status==='Received'?'ok':o.status==='Ordered'||o.status==='Partially received'?'info':'')}</td><td class="r" style="white-space:nowrap">${o.status==='Ordered'||o.status==='Partially received'?`<button class="btn sm primary" data-act="poReceive" data-id="${o.id}">Receive</button>`:o.status!=='Received'&&i>=0&&i<3?`<button class="btn sm" data-act="poAdvance" data-id="${o.id}">${['Request','Approve','Mark ordered'][i]}</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="8"><div class="empty">No purchase orders.</div></td></tr>'}</tbody></table></div></div>`;
+   return `<tr><td class="mono name">${esc(o.id)}<div class="sub">${fDate(o.date)}</div></td><td><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div></td><td>${esc(o.supplier)}</td><td class="r mono">${o.recv}/${o.qty}</td><td class="r mono">${lkr(o.qty*o.unit)}</td><td class="${late?'up':''}">${o.eta?fDate(o.eta):'–'}${late?' (late)':''}</td><td>${statusBadge(o.status,o.status==='Received'?'ok':o.status==='Ordered'||o.status==='Partially received'?'info':'')}</td><td class="r" style="white-space:nowrap">${o.status==='Ordered'||o.status==='Partially received'?`<button class="btn sm primary" data-act="poReceive" data-id="${o.id}">Receive</button>`:o.status!=='Received'&&i>=0&&i<3?`<button class="btn sm" data-act="poAdvance" data-id="${o.id}">${['Request','Approve','Mark ordered'][i]}</button>`:''} <button class="btn sm ghost" data-act="editPO" data-id="${o.id}">Edit</button> <button class="btn sm ghost danger" data-act="deletePO" data-id="${o.id}">Delete</button></td></tr>`}).join('')||'<tr><td colspan="8"><div class="empty">No purchase orders.</div></td></tr>'}</tbody></table></div></div>`;
 }
 
 /* ---------- drawers ---------- */
@@ -731,13 +860,15 @@ function machineDrawer(id){return ()=>{const m=mById(id);if(!m)return '';const l
   return `<div class="drawer-h"><div><div class="mono sub">${esc(m.id)} · ${esc(l.name)}</div><h2>${esc(m.name)}</h2><div style="margin-top:6px">${stChip(mStatus(m))}</div></div><button class="btn sm x" data-act="closeDrawer" aria-label="Close">${ic('x')}</button></div>
   <div class="sec"><div style="display:flex;gap:8px;flex-wrap:wrap">${o?`<button class="btn primary" data-act="resolveDowntime" data-id="${o.id}">Resolve downtime</button>`:`<button class="btn primary" data-act="logDowntime" data-id="${esc(id)}">Log downtime</button>`}
    ${o?'':`<select data-mstatus="${esc(id)}" aria-label="Set status">${opts(['Operational','Maintenance Required','Idle','Decommissioned'],m.status)}</select>`}</div></div>
+  <div class="sec" style="display:flex;gap:8px"><button class="btn sm ghost" data-act="editMachine" data-id="${esc(id)}">Edit machine</button><button class="btn sm ghost danger" data-act="deleteMachine" data-id="${esc(id)}">Remove machine</button></div>
   <div class="sec"><h4>Last 90 days</h4><div class="facts"><div><span>Stops</span><b class="num">${ev.length}</b></div><div><span>Unplanned downtime</span><b class="num">${fDur(sum(un))}</b></div><div><span>Average repair time</span><b class="num">${cl.length?fDur(sum(cl)/cl.length):'–'}</b></div><div><span>Manufacturer</span><b>${esc(m.maker||'–')}</b></div></div></div>
   <div class="sec"><h4>Spares that fit this machine</h4><div class="row-list">${S.parts.filter(p=>p.compat.includes(id)).sort((a,b)=>stock(a).r-stock(b).r).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.stock} in stock</div></div>${statusBadge(s.k,s.c)}</div>`}).join('')||'<div class="sub">No parts linked yet.</div>'}</div></div>
+  ${S.assets.some(a=>a.machine===id)?`<div class="sec"><h4>Serial-numbered assets fitted</h4>${S.assets.filter(a=>a.machine===id).map(a=>`<div class="item"><div class="grow"><div class="t mono">${esc(a.serial)}</div><div class="s">${esc((pById(a.part)||{}).name||'')}</div></div>${statusBadge(a.status,a.status==='Active on line'?'ok':'warn')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Recent stops</h4><div class="row-list">${ev.slice(0,7).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.cause)}</div><div class="s">${fDT(evStart(e))} · ${esc(e.desc||'')}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')||'<div class="sub">No stops in 90 days.</div>'}</div></div>`}}
 function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=stock(p),tx=S.txns.filter(t=>t.partId===id).sort((a,b)=>b.t-a.t).slice(0,8),pos=openPO(id),as=S.assets.filter(a=>a.part===id);
   return `<div class="drawer-h"><div><div class="mono sub">${esc(p.code)} · ${esc(p.pn)}</div><h2>${esc(p.name)}</h2><div style="margin-top:6px;display:flex;gap:6px">${statusBadge(s.k,s.c)}${p.serialized?statusBadge('Serialized','info'):''}${p.repairable?statusBadge('Repairable',''):''}</div></div><button class="btn sm x" data-act="closeDrawer" aria-label="Close">${ic('x')}</button></div>
   <div class="sec"><div style="display:flex;align-items:baseline;gap:8px"><span class="kpi"><span class="v num" style="font-size:46px">${p.stock}</span></span><span class="sub">in stock · min ${p.min} · reorder ${p.reorder} · max ${p.max}</span></div>${gauge(p,true)}
-   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm ghost" data-act="editPart" data-id="${id}">Edit part</button><button class="btn sm ghost danger" data-act="deletePart" data-id="${id}">Delete part</button></div></div>
   <div class="sec"><h4>Details</h4><div class="facts"><div><span>Brand</span><b>${esc(p.brand)}</b></div><div><span>Category</span><b>${esc(p.cat)}</b></div><div><span>Location</span><b>${esc(p.loc)}</b></div><div><span>Unit value</span><b class="num">${lkr(p.cost)}</b></div><div><span>Supplier</span><b>${esc(p.supplier)}</b></div><div><span>Lead time</span><b class="num">${p.lead} days</b></div></div></div>
   ${pos.length?`<div class="sec"><h4>On order</h4>${pos.map(o=>`<div class="item"><div class="grow"><div class="t mono">${esc(o.id)}</div><div class="s">${o.qty-o.recv} due ${o.eta?fDate(o.eta):''}</div></div>${statusBadge(o.status,'info')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Fits ${p.compat.length} machines</h4><div style="display:flex;gap:6px;flex-wrap:wrap">${p.compat.map(c=>`<button class="chip plain" style="border:0;cursor:pointer" data-act="openMachine" data-id="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="sub">None linked</span>'}</div></div>
@@ -767,7 +898,7 @@ async function sb(path,o){o=o||{};const base=cfg.url.replace(/\/+$/,'').replace(
   const r=await fetch(base+'/rest/v1/'+path,{method:o.method||'GET',headers:Object.assign({apikey:cfg.key,Authorization:'Bearer '+cfg.key,'Content-Type':'application/json'},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});
   const tx=await r.text();if(!r.ok)throw new Error('HTTP '+r.status+' '+tx.slice(0,200));return tx?JSON.parse(tx):null}
 async function pullCloud(){const rows=await sb('linewatch_state?id=eq.'+encodeURIComponent(cfg.row)+'&select=rev,data,updated_at');return rows&&rows.length?rows[0]:null}
-function adopt(c){S=c.data;S.rev=c.rev;S.dirty=false;sync.conflict=false;save();render()}
+function adopt(c){S=c.data;S.rev=c.rev;S.dirty=false;sync.conflict=false;undoStack=[];redoStack=[];lastSnap=snap();save();render()}
 function scheduleSync(){if(!sbOn()||!cfg.auto||sync.conflict)return;clearTimeout(pt);setSync('pending','Unsynced changes');pt=setTimeout(()=>doSync(false),1200)}
 async function doSync(manual){
   if(!sbOn()||pushing)return;pushing=true;setSync('busy','Syncing…');const e0=edits;
@@ -880,19 +1011,19 @@ function vSettings(){
 /* ---------- render ---------- */
 function renderNav(){
   const items=[['overview','Overview'],['downtime','Downtime'],['parts','Spare parts'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
-  const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received').length,false]};
+  const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
 function render(){
   renderNav();
   const v=VIEWS[ui.view],html={overview:vOverview,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
-  const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
+  const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newLine">${ic('plus')} Add line</button><button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,assets:`<button class="btn" data-act="newAsset">${ic('plus')} Add asset</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
   const y=window.scrollY;
-  $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions">${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
+  $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions"><button class="btn" data-act="undo" ${undoStack.length?'':'disabled'} title="Undo (Ctrl+Z)" aria-label="Undo">${ic('undo')}<span class="lbl">Undo</span></button><button class="btn" data-act="redo" ${redoStack.length?'':'disabled'} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${ic('redo')}<span class="lbl">Redo</span></button>${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
   window.scrollTo(0,y);
   renderDrawer();
 }
-function commit(){edits++;S.dirty=true;save();render();scheduleSync()}
+function commit(){edits++;S.dirty=true;undoStack.push({s:lastSnap,l:'last change'});if(undoStack.length>40)undoStack.shift();redoStack=[];lastSnap=snap();pendingLabel=true;save();render();scheduleSync()}
 
 /* ---------- events ---------- */
 const ACT={
@@ -905,7 +1036,10 @@ const ACT={
  deleteEvent:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Confirm?';setTimeout(()=>{b.dataset.armed='';b.textContent='Delete'},3000);return}S.events=S.events.filter(e=>e.id!==b.dataset.id);commit();toast('Event deleted')},
  setF:b=>{ui[b.dataset.k]=b.dataset.v;render()},
  stockIssue:b=>stockModal('issue',b.dataset.id),stockReceive:b=>stockModal('receive',b.dataset.id),stockAdjust:b=>stockModal('adjust',b.dataset.id),
- newPart:partForm,newMachine:machineForm,newPO:b=>poForm(b.dataset.id),newRepair:b=>repairForm(b.dataset.id),
+ newPart:()=>partForm(),newMachine:b=>machineForm(null,b.dataset.id),newPO:b=>poForm(b.dataset.id),newRepair:b=>repairForm(b.dataset.id),
+ undo,redo,newLine:()=>lineForm(),editLine:b=>lineForm(b.dataset.id),deleteLine:b=>deleteLine(b.dataset.id),editMachine:b=>machineForm(b.dataset.id),deleteMachine:b=>deleteMachine(b.dataset.id),
+ editPart:b=>partForm(b.dataset.id),deletePart:b=>deletePart(b.dataset.id),newAsset:()=>assetForm(),editAsset:b=>assetForm(b.dataset.id),deleteAsset:b=>deleteAsset(b.dataset.id),
+ editEvent:b=>editEvent(b.dataset.id),editPO:b=>poEdit(b.dataset.id),deletePO:b=>deletePO(b.dataset.id),editRepair:b=>repairEdit(b.dataset.id),deleteRepair:b=>deleteRepair(b.dataset.id),moreEvents:()=>{ui.dtLimit=(ui.dtLimit||60)+60;render()},
  poReceive:b=>poReceive(b.dataset.id),
  poAdvance:b=>{const o=S.pos.find(x=>x.id===b.dataset.id);o.status=PO_FLOW[PO_FLOW.indexOf(o.status)+1];commit();toast(o.id+' is now '+o.status)},
  repairAdvance:b=>repairAdvance(b.dataset.id),
@@ -921,12 +1055,13 @@ const ACT={
  resetData:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Click again to reset';setTimeout(()=>{b.dataset.armed='';b.textContent='Reset sample data'},3000);return}const rv=S.rev;S=seed();S.rev=rv;closeDrawer();commit();toast('Sample data restored')}
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.tagName==='TR'&&e.target.closest('button,a,select'))return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b)}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
+document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey||e.metaKey)&&!/INPUT|TEXTAREA|SELECT/.test(tg)){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();undo();return}if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();redo();return}}
+  if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
   if((e.key==='Enter'||e.key===' ')&&e.target.tagName==='TR'&&e.target.dataset.act){e.preventDefault();ACT[e.target.dataset.act](e.target)}});
 function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
-document.addEventListener('change',onFilter);
+document.addEventListener('change',e=>{if(e.target.type==='search')return;onFilter(e)});
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
