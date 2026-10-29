@@ -158,7 +158,7 @@ td.r,th.r{text-align:right}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
 .filters input,.filters select,.field input,.field select,.field textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-height:36px;min-width:0}
 .filters input[type=search]{flex:1;min-width:180px;max-width:360px}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg{max-width:100%;overflow-x:auto;display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{all:unset;cursor:pointer;padding:7px 12px;font-size:13px;font-weight:500;color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
@@ -259,6 +259,7 @@ const MIN=60000, DAY=86400000;
 const NOW=()=>Date.now();
 const lkr=n=>'LKR '+Math.round(n).toLocaleString('en-US');
 const lkrK=n=>n>=1e6?'LKR '+(n/1e6).toFixed(2)+'M':n>=1e3?'LKR '+Math.round(n/1e3)+'K':'LKR '+Math.round(n);
+const MONF=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const p2=n=>String(n).padStart(2,'0');
 const fDate=t=>{const d=new Date(t);return d.getDate()+' '+MON[d.getMonth()]};
@@ -382,7 +383,7 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',ovRange:'30',rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
@@ -733,9 +734,18 @@ const Y0=t=>new Date(new Date(t).getFullYear(),0,1).getTime();
 function ovBounds(){
   const r=ui.ovRange,now=NOW();let from,pf=null,pt=null,label,plabel='previous period';
   if(r==='ytd'){const d=new Date(now);from=Y0(now);pf=new Date(d.getFullYear()-1,0,1).getTime();pt=new Date(d.getFullYear()-1,d.getMonth(),d.getDate(),d.getHours(),d.getMinutes()).getTime();label='this year so far';plabel='same period last year'}
+  else if(r==='tm'||r==='lm'||r==='month'||r==='year'){
+    const d=new Date(now);let y=d.getFullYear(),m=d.getMonth(),whole=false;
+    if(r==='lm'){m-=1}else if(r==='month'){y=+ui.ovYear;m=+ui.ovMonth}else if(r==='year'){y=+ui.ovYear;whole=true}
+    if(whole){from=new Date(y,0,1).getTime();const to2=new Date(y+1,0,1).getTime();pf=new Date(y-1,0,1).getTime();pt=from;label='the year '+y;plabel=String(y-1);return {from,to:to2,pf,pt,label,plabel}}
+    from=new Date(y,m,1).getTime();const to2=new Date(y,m+1,1).getTime(),pm=new Date(y,m-1,1);pf=pm.getTime();pt=from;
+    if(r==='tm'){pt=pf+(now-from);label='this month, '+MONF[m]+' '+y;plabel='the same point last month'}
+    else{label=MONF[((m%12)+12)%12]+' '+new Date(y,m,1).getFullYear();plabel=MONF[pm.getMonth()]}
+    return {from,to:to2,pf,pt,label,plabel}}
   else if(r==='all'){const m=S.events.reduce((a,e)=>Math.min(a,evStart(e)),now);from=Math.min(m,now-30*DAY);label='all time'}
   else{const d=+r;from=now-d*DAY;pf=from-d*DAY;pt=from;label=d===365?'the last 12 months':'the last '+d+' days';plabel='the '+d+' days before'}
   return {from,to:now,pf,pt,label,plabel}}
+const dataStart=()=>S.events.reduce((a,e)=>Math.min(a,evStart(e)),NOW());
 const evIn=(from,to,pred)=>S.events.filter(e=>{const t=evStart(e);return t>=from&&t<to&&(!pred||pred(e))});
 function availRange(lid,from,to){const ms=S.machines.filter(m=>(!lid||m.line===lid)&&m.status!=='Decommissioned').map(m=>m.id);if(!ms.length||from>=NOW())return null;to=Math.min(to,NOW());const days=Math.max(1/24,(to-from)/DAY);const un=sum(evIn(from,to,e=>e.type==='Unplanned'&&ms.includes(e.machine)));return Math.max(0,1-un/(ms.length*days*SCHED))}
 const mttrOf=list=>{const c=list.filter(e=>e.type==='Unplanned'&&e.end);return c.length?sum(c)/c.length:0};
@@ -774,12 +784,16 @@ function groupChart(buckets,series,aria){
   for(let i=0;i<=4;i++){const v=top*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${short(v)}</text>`}
   buckets.forEach((b,i)=>{series.forEach((se,j)=>{const v=se.vals[i];if(v>0){const h=ph*v/top,x=L+i*bw+bw*.11+j*w;g+=`<rect x="${x}" y="${T+ph-h}" width="${Math.max(1,w-1)}" height="${h}" rx="2" style="fill:${se.color}"><title>${esc(se.name)}, ${b.label}: LKR ${Math.round(v).toLocaleString('en-US')}</title></rect>`}});g+=`<text x="${L+i*bw+bw/2}" y="${H-8}" text-anchor="middle">${b.label}</text>`});
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg></div>`}
-const periodPicker=(cur)=>`<div class="seg" role="group" aria-label="Period">${[['7','7 days'],['30','30 days'],['90','90 days'],['365','12 months'],['ytd','This year'],['all','All time']].map(([v,l])=>`<button data-act="setF" data-k="ovRange" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>`;
+const periodPicker=(cur)=>{const cy=new Date().getFullYear(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date)),y0=new Date(t0).getFullYear(),ys=[];for(let y=cy+2;y>=y0;y--)ys.push(y);const act=cur==='month'||cur==='year';
+  return `<div class="seg" role="group" aria-label="Period">${[['tm','This month'],['lm','Last month'],['30','30 days'],['90','90 days'],['365','12 months'],['ytd','This year'],['all','All time']].map(([v,l])=>`<button data-act="setF" data-k="ovRange" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
+  <span style="color:var(--muted)">or pick</span>
+  <select data-f="ovMonth" aria-label="Month" ${act?'style="border-color:var(--accent)"':''}><option value="all"${ui.ovMonth==='all'?' selected':''}>Whole year</option>${MONF.map((m,i)=>`<option value="${i}"${String(i)===String(ui.ovMonth)?' selected':''}>${m}</option>`).join('')}</select>
+  <select data-f="ovYear" aria-label="Year" ${act?'style="border-color:var(--accent)"':''}>${ys.map(y=>`<option value="${y}"${y===+ui.ovYear?' selected':''}>${y}</option>`).join('')}</select>`};
 
 function hbars(rows,max,cls=''){if(!rows.length)return '<div class="empty">No downtime in this period.</div>';return `<div class="hb-list">${rows.map(r=>`<div class="hb-row"><span class="lab" title="${esc(r.l)}">${r.click?`<button class="link" data-act="openMachine" data-id="${esc(r.click)}">${esc(r.l)}</button>`:esc(r.l)}</span><span class="trk" style="height:10px;background:var(--surface-2);border-radius:5px;border:1px solid var(--line);overflow:hidden"><span style="display:block;height:100%;width:${Math.max(2,r.v/max*100)}%;background:${r.c||'var(--crit)'};border-radius:4px"></span></span><span class="val mono" style="text-align:right;font-size:12px;color:var(--muted)">${esc(r.t)}</span></div>`).join('')}</div>`}
 
 function vOverview(){
-  const B=ovBounds(),cur=evIn(B.from,B.to,e=>e.type==='Unplanned'),prev=B.pf?evIn(B.pf,B.pt,e=>e.type==='Unplanned'):null;
+  const B=ovBounds(),hasPrev=!!B.pf&&B.pf>=dataStart()-DAY&&B.from<=NOW();if(!hasPrev)B.pf=null;const cur=evIn(B.from,B.to,e=>e.type==='Unplanned'),prev=B.pf?evIn(B.pf,B.pt,e=>e.type==='Unplanned'):null;
   const down=openEvents(),mt=S.machines.filter(m=>!openEv(m.id)&&m.status==='Maintenance Required').length;
   const al=alertParts(),val=S.parts.reduce((a,p)=>a+p.stock*p.cost,0);
   const rOpen=S.repairs.filter(r=>r.status!=='Returned');
@@ -792,7 +806,7 @@ function vOverview(){
   const top=S.machines.map(m=>({m,v:sum(cur.filter(e=>e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
   const tb=timeBins(B.from,B.to);fillBins(tb.bins);
   const pl=B.plabel;
-  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${periodPicker(ui.ovRange)}<span style="color:var(--muted)">Showing ${esc(B.label)}</span></div><button class="btn" data-act="nav" data-id="reports">Month and year reports →</button></div>${alerts}
+  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${periodPicker(ui.ovRange)}<span style="color:var(--muted)">Showing ${esc(B.label)}${B.from>NOW()?'. This period has not started yet.':(!hasPrev&&ui.ovRange!=='all'?'. No earlier data to compare with.':'')}</span></div><button class="btn" data-act="nav" data-id="reports">Month and year reports →</button></div>${alerts}
   <div class="grid g-kpi">
     ${kpi('Machines down now',down.length,'/ '+S.machines.filter(m=>m.status!=='Decommissioned').length,mt?mt+' more need maintenance':'None flagged for maintenance',down.length?'bad':'good')}
     ${kpi('Unplanned downtime',fHrs(sum(cur)),'h',delta(sum(cur),prev&&sum(prev),pl))}
@@ -822,13 +836,13 @@ function bucketStats(from,to){
   return {n:ev.length,un:sum(un),pl:sum(pl),unN:un.length,mttr:mttrOf(ev),avail:availRange(null,from,to),lineAv:S.lines.map(l=>availRange(l.id,from,to)),issued,qty,bought,rep,future:from>NOW()}}
 function vReports(){
   const cy=new Date().getFullYear(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date),...S.txns.map(t=>t.t)),y0=new Date(t0).getFullYear();
-  const years=[];for(let y=cy;y>=y0;y--)years.push(y);
+  const years=[];for(let y=cy+2;y>=y0;y--)years.push(y);
   if(years.indexOf(+ui.rpYear)<0)ui.rpYear=cy;
   const mode=ui.rpMode,yr=+ui.rpYear,bk=[];
   if(mode==='month'){for(let m=0;m<12;m++)bk.push({label:MON[m],long:MON[m]+' '+yr,from:new Date(yr,m,1).getTime(),to:new Date(yr,m+1,1).getTime()})}
   else{for(let y=y0;y<=cy;y++)bk.push({label:String(y),long:String(y),from:new Date(y,0,1).getTime(),to:new Date(y+1,0,1).getTime()})}
   bk.forEach(b=>{b.s=bucketStats(b.from,b.to)});
-  const sf=bk[0].from,st=bk[bk.length-1].to,sc=bucketStats(sf,st),pv=mode==='month'?bucketStats(new Date(yr-1,0,1).getTime(),new Date(yr,0,1).getTime()):null,hasPv=pv&&pv.n>0,pl=String(yr-1);
+  const sf=bk[0].from,st=bk[bk.length-1].to,sc=bucketStats(sf,st),pv=mode==='month'?bucketStats(new Date(yr-1,0,1).getTime(),new Date(yr,0,1).getTime()):null,hasPv=pv&&pv.n>0&&new Date(yr-1,0,1).getTime()>=dataStart()-DAY&&yr<=cy,pl=String(yr-1);
   const scope=mode==='month'?String(yr):(y0===cy?String(cy):y0+' to '+cy);
   const un=evIn(sf,st,e=>e.type==='Unplanned');
   const byM=S.machines.map(m=>({m,v:sum(un.filter(e=>e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
@@ -1158,7 +1172,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey||e.metaKey)&&!/INPUT|TEXTAREA|SELECT/.test(tg)){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();undo();return}if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();redo();return}}
   if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
   if((e.key==='Enter'||e.key===' ')&&e.target.tagName==='TR'&&e.target.dataset.act){e.preventDefault();ACT[e.target.dataset.act](e.target)}});
-function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
+function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;if(t.dataset.f==='ovMonth'||t.dataset.f==='ovYear')ui.ovRange=ui.ovMonth==='all'?'year':'month';const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
 document.addEventListener('change',e=>{if(e.target.type==='search')return;onFilter(e)});
