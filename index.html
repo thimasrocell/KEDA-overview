@@ -213,6 +213,10 @@ td.r,th.r{text-align:right}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px 10px}
 .field .chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink);font-weight:400}
 @media (max-width:900px){.btn .lbl{display:none}}
+.locgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.locbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.locbar .n{min-width:110px}
+.locbar .gauge{flex:1}
 .code{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px;font:12px/1.5 var(--f-mono);overflow:auto;white-space:pre;max-height:230px;margin:0}
 .cfg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .steps{margin:0 0 12px;padding-left:20px;color:var(--muted)}
@@ -298,24 +302,24 @@ const MACH0=[
  ['K2-01','Loading Machine','L2','Keda Industrial','Operational',.8],
  ['K2-02','Polishing Machine A','L2','Keda Industrial','Operational',1.6],
  ['K2-03','Polishing Machine B','L2','Keda Industrial','Operational',1.4],
- ['K2-05','Squaring Machine','L2','Keda Industrial','Operational',1.2],
- ['K2-09','Multigecko Sorter','L2','Surface Inspection Tech','Operational',1.3],
+ ['K2-04','Squaring Machine','L2','Keda Industrial','Operational',1.2],
+ ['K2-05','Multigecko Sorter','L2','Surface Inspection Tech','Operational',1.3],
  ['K3-01','Loading Machine','L3','Keda Industrial','Operational',.7],
  ['K3-02','Squaring Machine','L3','Keda Industrial','Operational',1.3],
- ['K3-04','Packing Machine','L3','BMR Automation','Operational',1]];
+ ['K3-03','Packing Machine','L3','BMR Automation','Operational',1]];
 /* code,pn,name,brand,cat,serialized,repairable,unitLKR,stock,min,reorder,max,location,lead,supplier,[compatible machines] */
 const PARTS0=[
  ['EL-0045','IME18-08BPSZW2S','Inductive Proximity Sensor M18','SICK','Electrical',0,0,15840,8,12,15,30,'Cabinet E / Bin 04',25,'SICK Sensor Intelligence',['*']],
- ['EL-0089','MDX61B0150-5A3-4-00','Servo Inverter 15kW','SEW Eurodrive','Electrical',1,1,1056000,1,2,2,4,'Electronic Safe Store / A2',90,'Siemens Automation',['K2-02','K2-03','K2-05','K3-02']],
+ ['EL-0089','MDX61B0150-5A3-4-00','Servo Inverter 15kW','SEW Eurodrive','Electrical',1,1,1056000,1,2,2,4,'Electronic Safe Store / A2',90,'Siemens Automation',['K2-02','K2-03','K2-04','K3-02']],
  ['ME-0112','CR-HT-48-2600','High-Temp Ceramic Roller 48x2600','Keratech','Mechanical',0,0,148500,14,10,15,30,'Mechanical Heavy Yard',60,'Keratech Italy',['K2-02','K2-03','K3-02','SL-03']],
- ['EL-0012','OD2-P120W60A0','Laser Displacement Sensor','SICK','Electrical',1,1,544500,0,2,3,5,'Electronic Safe Store / B1',45,'SICK Sensor Intelligence',['K2-09','SL-02']],
+ ['EL-0012','OD2-P120W60A0','Laser Displacement Sensor','SICK','Electrical',1,1,544500,0,2,3,5,'Electronic Safe Store / B1',45,'SICK Sensor Intelligence',['K2-05','SL-02']],
  ['EL-0033','ACS880-01-045A','Variable Frequency Drive 22kW','ABB','Electrical',1,1,640500,2,2,3,6,'Cabinet A',75,'ABB Industrial Solutions',['SL-01','SL-03','K2-01','K3-01']],
- ['ME-0088','6313-2RS1','Deep Groove Ball Bearing 60x130x31','SKF','Mechanical',0,0,12810,32,20,25,60,'Cabinet M',14,'SKF Lanka',['SL-01','SL-03','SL-05','K2-01','K2-02','K2-03','K2-05','K3-01','K3-02']],
+ ['ME-0088','6313-2RS1','Deep Groove Ball Bearing 60x130x31','SKF','Mechanical',0,0,12810,32,20,25,60,'Cabinet M',14,'SKF Lanka',['SL-01','SL-03','SL-05','K2-01','K2-02','K2-03','K2-04','K3-01','K3-02']],
  ['ME-0131','HTD-8M-1600-30','Timing Belt HTD 8M x 1600','Gates','Mechanical',0,0,9800,18,8,12,30,'Cabinet M / Bin 2',21,'SKF Lanka',['SL-03','SL-04','K2-01','K3-01']],
  ['PN-0021','ZP3-B63-US','Vacuum Suction Cup Ø63','SMC','Pneumatic',0,0,4200,44,30,40,100,'Cabinet P / Bin 1',30,'Festo Lanka',['SL-01','K2-01','K3-01','SL-05']],
- ['PN-0034','DSBC-63-200','Pneumatic Cylinder 63x200','Festo','Pneumatic',0,0,38500,3,4,6,12,'Cabinet P / Bin 3',35,'Festo Lanka',['SL-04','SL-05','K3-04']],
- ['EL-0057','3RT2036-1BB40','Contactor 40A 24VDC','Siemens','Electrical',0,0,21400,9,6,8,20,'Cabinet E / Bin 07',30,'Siemens Automation',['SL-03','SL-04','K2-05','K3-02','K3-04']],
- ['EL-0101','ROT-1024-PPR','Rotary Encoder 1024 ppr','Omron','Electrical',0,0,46800,4,3,5,10,'Cabinet E / Bin 09',28,'Local Electrical Traders',['K2-02','K2-03','K3-02','K2-05']],
+ ['PN-0034','DSBC-63-200','Pneumatic Cylinder 63x200','Festo','Pneumatic',0,0,38500,3,4,6,12,'Cabinet P / Bin 3',35,'Festo Lanka',['SL-04','SL-05','K3-03']],
+ ['EL-0057','3RT2036-1BB40','Contactor 40A 24VDC','Siemens','Electrical',0,0,21400,9,6,8,20,'Cabinet E / Bin 07',30,'Siemens Automation',['SL-03','SL-04','K2-04','K3-02','K3-03']],
+ ['EL-0101','ROT-1024-PPR','Rotary Encoder 1024 ppr','Omron','Electrical',0,0,46800,4,3,5,10,'Cabinet E / Bin 09',28,'Local Electrical Traders',['K2-02','K2-03','K3-02','K2-04']],
  ['ME-0140','DAH-150-D80','Diamond Abrasive Polishing Head','Keratech','Mechanical',0,0,84200,22,16,20,48,'Mechanical Heavy Yard',50,'Keratech Italy',['K2-02','K2-03','K3-02']]];
 const SUPPLIERS=['SICK Sensor Intelligence','Siemens Automation','ABB Industrial Solutions','Keratech Italy','SKF Lanka','Festo Lanka','Local Electrical Traders'];
 
@@ -326,6 +330,7 @@ function seed(){
   const S={v:1,lines:LINES.map(l=>Object.assign({},l)),machines:[],parts:[],events:[],txns:[],assets:[],repairs:[],pos:[]};
   MACH0.forEach(m=>S.machines.push({id:m[0],code:'MC-'+m[0],name:m[1]+' '+m[0].split('-')[0],line:m[2],maker:m[3],status:m[4],w:m[5]}));
   PARTS0.forEach((p,i)=>S.parts.push({id:'P'+(i+1),code:p[0],pn:p[1],name:p[2],brand:p[3],cat:p[4],serialized:!!p[5],repairable:!!p[6],cost:p[7],stock:p[8],min:p[9],reorder:p[10],max:p[11],loc:p[12],lead:p[13],supplier:p[14],compat:p[15][0]==='*'?MACH0.map(m=>m[0]):p[15]}));
+  S.parts.forEach(p=>{const cnt={};S.machines.forEach(m=>{if(p.compat.indexOf(m.id)>=0)cnt[m.line]=(cnt[m.line]||0)+1});const tot=Object.keys(cnt).reduce((a,k)=>a+cnt[k],0)||1;p.byLine={};let used=0;S.lines.forEach(l=>{const q=Math.floor(p.stock*0.7*(cnt[l.id]||0)/tot);p.byLine[l.id]=q;used+=q});p.byLine.main=p.stock-used});
   const partsFor=(mid,cat)=>S.parts.filter(p=>p.cat===cat&&p.compat.includes(mid)&&!p.serialized);
   let n=0;
   for(let d=730;d>=1;d--){
@@ -348,15 +353,15 @@ function seed(){
   const t1=now-6*3600000;
   S.events.push({id:'dt-'+(++n),machine:'SL-03',type:'Unplanned',cause:'Sensor / instrumentation',start:new Date(t1).toISOString(),end:new Date(t1+45*MIN).toISOString(),desc:'Conveyor timing sensor replaced, belt tracking realigned',tech:'R. Perera',parts:[{partId:P('EL-0045'),qty:1}]});
   S.txns.push({id:newId('tx'),t:t1+45*MIN,partId:P('EL-0045'),type:'Issue to machine',qty:-1,machine:'SL-03',ref:'dt-'+n,by:'R. Perera'});
-  S.events.push({id:'dt-'+(++n),machine:'K2-09',type:'Unplanned',cause:'Sensor / instrumentation',start:new Date(now-3.4*3600000).toISOString(),end:null,desc:'Planarity measurement drift. Laser sensor removed and sent for repair, no spare in stores.',tech:'M. Silva',parts:[],blocked:P('EL-0012')});
+  S.events.push({id:'dt-'+(++n),machine:'K2-05',type:'Unplanned',cause:'Sensor / instrumentation',start:new Date(now-3.4*3600000).toISOString(),end:null,desc:'Planarity measurement drift. Laser sensor removed and sent for repair, no spare in stores.',tech:'M. Silva',parts:[],blocked:P('EL-0012')});
   S.txns.push({id:newId('tx'),t:ago(40),partId:P('ME-0112'),type:'Purchase',qty:15,machine:'',ref:'PO-2026-072',by:'Stores'});
   S.txns.push({id:newId('tx'),t:ago(12),partId:P('ME-0088'),type:'Stock adjustment',qty:-2,machine:'',ref:'Cycle count',by:'Stores'});
   S.assets=[
    {id:'A1',part:P('EL-0089'),serial:'DRV-SEW-9901',status:'Active on line',machine:'K2-02',loc:'Polishing head cabinet #2',installed:ago(412),warranty:ago(-300)},
-   {id:'A2',part:P('EL-0012'),serial:'SNS-SICK-4022',status:'Under repair (abroad)',machine:'K2-09',loc:'SICK Service, Waldkirch, Germany',installed:ago(520),warranty:ago(40)},
+   {id:'A2',part:P('EL-0012'),serial:'SNS-SICK-4022',status:'Under repair (abroad)',machine:'K2-05',loc:'SICK Service, Waldkirch, Germany',installed:ago(520),warranty:ago(40)},
    {id:'A3',part:P('EL-0033'),serial:'DRV-ABB-2204',status:'In stores',machine:'',loc:'Electrical stores, shelf B3',installed:null,warranty:ago(-200)},
    {id:'A4',part:P('EL-0089'),serial:'DRV-SEW-7740',status:'Active on line',machine:'K3-02',loc:'Squaring panel K3',installed:ago(690),warranty:ago(100)},
-   {id:'A5',part:P('EL-0089'),serial:'DRV-SEW-8120',status:'Under repair (local)',machine:'K2-05',loc:'Colombo Drives Service',installed:ago(300),warranty:ago(-60)},
+   {id:'A5',part:P('EL-0089'),serial:'DRV-SEW-8120',status:'Under repair (local)',machine:'K2-04',loc:'Colombo Drives Service',installed:ago(300),warranty:ago(-60)},
    {id:'A6',part:P('EL-0033'),serial:'DRV-ABB-2231',status:'Active on line',machine:'SL-03',loc:'Conveyor drive cabinet',installed:ago(240),warranty:ago(-250)},
    {id:'A7',part:P('EL-0012'),serial:'SNS-SICK-4019',status:'Active on line',machine:'SL-02',loc:'Inspection frame',installed:ago(380),warranty:ago(-20)}];
   S.repairs=[
@@ -384,13 +389,40 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+
+/* ---------- stock by location and machine numbering ---------- */
+const MAIN='main';
+const locName=k=>k===MAIN?'Main stores':((lById(k)||{}).name||k);
+const locShort=k=>k===MAIN?'Main':((lById(k)||{}).code||k);
+const locKeys=()=>[MAIN].concat(S.lines.map(l=>l.id));
+const locSel=sel=>locKeys().map(k=>`<option value="${k}"${k===sel?' selected':''}>${esc(locName(k))}</option>`).join('');
+function stockTotal(p){return Object.keys(p.byLine||{}).reduce((a,k)=>a+(+p.byLine[k]||0),0)}
+function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
+  Object.keys(p.byLine).forEach(k=>{if(k!==MAIN&&!lById(k)){p.byLine[MAIN]=(p.byLine[MAIN]||0)+p.byLine[k];delete p.byLine[k];ch=true}});
+  const t=stockTotal(p);if(t!==p.stock){p.stock=t;ch=true}});return ch}
+function addStock(p,loc,q){p.byLine[loc]=(p.byLine[loc]||0)+q;p.stock=stockTotal(p)}
+function takeStock(p,q,pref){const order=[pref,MAIN].concat(S.lines.map(l=>l.id)).filter((k,i,a)=>k&&a.indexOf(k)===i),out=[];let left=q;
+  order.forEach(k=>{if(left<=0)return;const have=p.byLine[k]||0,t=Math.min(have,left);if(t>0){p.byLine[k]=have-t;left-=t;out.push({loc:k,q:t})}});p.stock=stockTotal(p);return out}
+const allocText=a=>a.map(x=>locShort(x.loc)+' '+x.q).join(', ');
+const locLine=p=>locKeys().filter(k=>(p.byLine[k]||0)>0).map(k=>locShort(k)+' '+p.byLine[k]).join(' · ')||'none';
+function renumberMachines(){
+  const cnt={},nid=S.machines.map(m=>{const l=lById(m.line),c=(l?l.code:'XX').toUpperCase();cnt[m.line]=(cnt[m.line]||0)+1;return c+'-'+String(cnt[m.line]).padStart(2,'0')});
+  const map={};S.machines.forEach((m,i)=>{if(m.id!==nid[i])map[m.id]=nid[i]});if(!Object.keys(map).length)return false;
+  const R=id=>map[id]||id;
+  S.events.forEach(e=>{e.machine=R(e.machine)});S.parts.forEach(p=>{p.compat=p.compat.map(R)});S.assets.forEach(a=>{if(a.machine)a.machine=R(a.machine)});S.txns.forEach(t=>{if(t.machine)t.machine=R(t.machine)});
+  S.machines.forEach((m,i)=>{m.id=nid[i];m.code='MC-'+m.id});return true}
+function moveMachine(id,dir){
+  const m=mById(id);if(!m)return;const idx=S.machines.map((x,i)=>x.line===m.line?i:-1).filter(i=>i>=0),pos=idx.indexOf(S.machines.indexOf(m)),to=pos+dir;
+  if(to<0||to>=idx.length)return;const a=idx[pos],b=idx[to],t=S.machines[a];S.machines[a]=S.machines[b];S.machines[b]=t;
+  renumberMachines();commit();toast('Moved '+m.name+' '+(dir<0?'up':'down')+', now '+m.id)}
 
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
 lastSnap=snap();
-function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;lastSnap=str;edits++;save();render();
+function migrate(){const a=ensureStock(),b=renumberMachines();return a||b}
+function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;migrate();lastSnap=snap();edits++;save();render();
   if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
 function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
 function redo(){if(!redoStack.length){toast('Nothing to redo');return}const e=redoStack.pop();undoStack.push({s:snap(),l:e.l});restore(e.s,'Redid: '+e.l)}
@@ -436,7 +468,7 @@ const ic=(n,extra='')=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 /* ---------- layers ---------- */
 let drawerFn=null;
 function openDrawer(fn){drawerFn=fn;$('#drawerLayer').classList.add('open');renderDrawer();$('#drawer').scrollTop=0}
-function renderDrawer(){if(drawerFn){const d=$('#drawer'),y=d.scrollTop;d.innerHTML=drawerFn();d.scrollTop=y}}
+function renderDrawer(){if(drawerFn){const d=$('#drawer'),y=d.scrollTop;d.innerHTML=drawerFn();if(!d.innerHTML.trim()){closeDrawer();return}d.scrollTop=y}}
 function closeDrawer(){drawerFn=null;$('#drawerLayer').classList.remove('open')}
 let toastT;
 function toast(m){if(pendingLabel&&undoStack.length)undoStack[undoStack.length-1].l=m;pendingLabel=false;const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
@@ -453,9 +485,9 @@ function closeModal(){$('#modalLayer').classList.remove('open');$('#modalLayer')
 const opts=(arr,sel)=>arr.map(a=>{const v=Array.isArray(a)?a[0]:a,l=Array.isArray(a)?a[1]:a;return `<option value="${esc(v)}"${v===sel?' selected':''}>${esc(l)}</option>`}).join('');
 const machOpts=sel=>S.lines.map(l=>`<optgroup label="${esc(l.name)}">${opts(S.machines.filter(m=>m.line===l.id).map(m=>[m.id,m.id+' · '+m.name]),sel)}</optgroup>`).join('');
 const partOpts=sel=>opts(S.parts.map(p=>[p.id,p.code+' · '+p.name+' ('+p.stock+' in stock)']),sel);
-function partRows(){return `<div class="field full"><label>Spare parts used (optional, deducted from stock)</label><div id="prows"><div class="prow"><select name="pu_part"><option value="">Select part…</option>${partOpts()}</select><input type="number" name="pu_qty" min="1" value="1" aria-label="Quantity"></div></div><button type="button" class="btn sm ghost" data-act="addPartRow" style="align-self:flex-start">${ic('plus')} Add another part</button></div>`}
+function partRows(){return `<div class="field full"><label>Spare parts used (optional, taken from this machine's line first, then main stores)</label><div id="prows"><div class="prow"><select name="pu_part"><option value="">Select part…</option>${partOpts()}</select><input type="number" name="pu_qty" min="1" value="1" aria-label="Quantity"></div></div><button type="button" class="btn sm ghost" data-act="addPartRow" style="align-self:flex-start">${ic('plus')} Add another part</button></div>`}
 function readParts(fd){const ids=fd.getAll('pu_part'),q=fd.getAll('pu_qty');const out=[];ids.forEach((id,i)=>{if(id)out.push({partId:id,qty:Math.max(1,parseInt(q[i])||1)})});return out}
-function applyParts(list,machine,ref,by,when){const warn=[];list.forEach(u=>{const p=pById(u.partId);if(p.stock<u.qty)warn.push(p.code);p.stock=Math.max(0,p.stock-u.qty);S.txns.push({id:newId('tx'),t:when,partId:p.id,type:'Issue to machine',qty:-u.qty,machine,ref,by})});return warn}
+function applyParts(list,machine,ref,by,when){const warn=[],pref=(mById(machine)||{}).line;list.forEach(u=>{const p=pById(u.partId);if(p.stock<u.qty)warn.push(p.code);const al=takeStock(p,u.qty,pref);S.txns.push({id:newId('tx'),t:when,partId:p.id,type:'Issue to machine',qty:-u.qty,machine,ref,by,loc:allocText(al)})});return warn}
 
 /* ---------- actions: downtime ---------- */
 function logDowntime(mid,resolveId){
@@ -500,30 +532,42 @@ function logDowntime(mid,resolveId){
 
 /* ---------- actions: stock ---------- */
 function stockModal(kind,pid){
-  const p=pById(pid);
+  const p=pById(pid),have=k=>p.byLine[k]||0;
   if(kind==='issue')modal('Issue '+p.code+' to machine',`
-    <div class="field full"><label>Part</label><input value="${esc(p.name)} · ${p.stock} in stock" disabled></div>
+    <div class="field full"><label>Part</label><input value="${esc(p.name)} · ${p.stock} in stock (${esc(locLine(p))})" disabled></div>
     <div class="field full"><label for="f_m">Machine</label><select id="f_m" name="machine">${machOpts(p.compat[0])}</select></div>
     <div class="field"><label for="f_q">Quantity</label><input id="f_q" type="number" name="qty" min="1" value="1" required></div>
+    <div class="field"><label for="f_from">Take from</label><select id="f_from" name="from"><option value="auto">Automatic (machine's line first)</option>${locKeys().map(k=>`<option value="${k}">${esc(locName(k))} (${have(k)})</option>`).join('')}</select></div>
     <div class="field"><label for="f_by">Issued to</label><input id="f_by" name="by" placeholder="Technician"></div>
-    <div class="field full"><label for="f_r">Downtime / work order reference</label><select id="f_r" name="ref"><option value="">None</option>${openEvents().map(e=>`<option value="${e.id}">${esc(e.machine+' · open since '+fDT(evStart(e)))}</option>`).join('')}</select></div>`,fd=>{
-      const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';if(q>p.stock)return 'Only '+p.stock+' in stock.';
-      p.stock-=q;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-q,machine:fd.get('machine'),ref:fd.get('ref')||'',by:fd.get('by')||'Stores'});
+    <div class="field"><label for="f_r">Downtime / work order reference</label><select id="f_r" name="ref"><option value="">None</option>${openEvents().map(e=>`<option value="${e.id}">${esc(e.machine+' · open since '+fDT(evStart(e)))}</option>`).join('')}</select></div>`,fd=>{
+      const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';const from=fd.get('from');
+      if(from==='auto'){if(q>p.stock)return 'Only '+p.stock+' in stock.'}else if(q>have(from))return 'Only '+have(from)+' in '+locName(from)+'.';
+      const al=from==='auto'?takeStock(p,q,(mById(fd.get('machine'))||{}).line):(p.byLine[from]-=q,p.stock=stockTotal(p),[{loc:from,q}]);
+      S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-q,machine:fd.get('machine'),ref:fd.get('ref')||'',by:fd.get('by')||'Stores',loc:allocText(al)});
       const ev=S.events.find(e=>e.id===fd.get('ref'));if(ev)(ev.parts=ev.parts||[]).push({partId:p.id,qty:q});
-      commit();toast(q+' × '+p.code+' issued')},{submit:'Issue'});
+      commit();toast(q+' × '+p.code+' issued from '+allocText(al))},{submit:'Issue'});
   if(kind==='receive')modal('Receive '+p.code,`
     <div class="field full"><label>Part</label><input value="${esc(p.name)} · ${p.stock} in stock" disabled></div>
     <div class="field"><label for="f_q">Quantity received</label><input id="f_q" type="number" name="qty" min="1" value="1" required></div>
-    <div class="field"><label for="f_ref">Reference (GRN / invoice)</label><input id="f_ref" name="ref"></div>`,fd=>{
-      const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';p.stock+=q;
-      S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Purchase',qty:q,machine:'',ref:fd.get('ref')||'',by:'Stores'});commit();toast(q+' × '+p.code+' received')},{submit:'Receive'});
+    <div class="field"><label for="f_into">Put into</label><select id="f_into" name="into">${locSel(MAIN)}</select></div>
+    <div class="field full"><label for="f_ref">Reference (GRN / invoice)</label><input id="f_ref" name="ref"></div>`,fd=>{
+      const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';const into=fd.get('into');addStock(p,into,q);
+      S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Purchase',qty:q,machine:'',ref:fd.get('ref')||'',by:'Stores',loc:locShort(into)});commit();toast(q+' × '+p.code+' received into '+locName(into))},{submit:'Receive'});
+  if(kind==='transfer')modal('Move '+p.code+' between locations',`
+    <div class="field full"><label>Part</label><input value="${esc(p.name)} · ${esc(locLine(p))}" disabled></div>
+    <div class="field"><label for="f_a">From</label><select id="f_a" name="from">${locKeys().map(k=>`<option value="${k}"${have(k)>0&&k===locKeys().find(x=>have(x)>0)?' selected':''}>${esc(locName(k))} (${have(k)})</option>`).join('')}</select></div>
+    <div class="field"><label for="f_b">To</label><select id="f_b" name="to">${locSel(S.lines.length?S.lines[0].id:MAIN)}</select></div>
+    <div class="field"><label for="f_q">Quantity</label><input id="f_q" type="number" name="qty" min="1" value="1" required></div>`,fd=>{
+      const q=parseInt(fd.get('qty')),from=fd.get('from'),to=fd.get('to');if(!(q>0))return 'Enter a quantity.';if(from===to)return 'Choose two different locations.';if(q>have(from))return 'Only '+have(from)+' in '+locName(from)+'.';
+      p.byLine[from]-=q;addStock(p,to,q);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Transfer',qty:q,machine:'',ref:locShort(from)+' to '+locShort(to),by:'Stores'});commit();toast('Moved '+q+' × '+p.code+' from '+locName(from)+' to '+locName(to))},{submit:'Move'});
   if(kind==='adjust')modal('Adjust count for '+p.code,`
-    <div class="field"><label>Current system count</label><input value="${p.stock}" disabled></div>
-    <div class="field"><label for="f_q">Counted quantity</label><input id="f_q" type="number" name="qty" min="0" value="${p.stock}" required></div>
+    <div class="field full"><label>Enter what is actually counted in each location</label></div>
+    <div class="field full"><div class="locgrid">${locKeys().map(k=>`<div class="field"><label for="ls_${k}">${esc(locName(k))}</label><input id="ls_${k}" type="number" min="0" name="ls_${k}" value="${have(k)}"></div>`).join('')}</div></div>
     <div class="field full"><label for="f_n">Reason</label><input id="f_n" name="note" placeholder="Cycle count, damaged, found stock…"></div>`,fd=>{
-      const q=parseInt(fd.get('qty'));if(!(q>=0))return 'Enter the counted quantity.';const diff=q-p.stock;
-      if(diff===0)return 'The count matches the system. Nothing to adjust.';
-      p.stock=q;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:diff,machine:'',ref:fd.get('note')||'Count',by:'Stores'});commit();toast('Stock adjusted by '+(diff>0?'+':'')+diff)},{submit:'Adjust'});
+      const cnt={};locKeys().forEach(k=>{cnt[k]=Math.max(0,parseInt(fd.get('ls_'+k))||0)});
+      if(!locKeys().some(k=>cnt[k]!==have(k)))return 'The counts match the system. Nothing to adjust.';
+      const before=p.stock;p.byLine=cnt;p.stock=stockTotal(p);const diff=p.stock-before;
+      S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:diff,machine:'',ref:fd.get('note')||'Count',by:'Stores'});commit();toast('Stock adjusted by '+(diff>0?'+':'')+diff)},{submit:'Save counts'});
 }
 
 /* ---------- add / edit / remove ---------- */
@@ -535,29 +579,32 @@ function lineForm(id){
     <div class="field"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(l?l.name:'')}" required placeholder="Keda 04"></div>
     <div class="field"><label for="f_c">Short code</label><input id="f_c" name="code" value="${esc(l?l.code:'')}" required maxlength="8" placeholder="K4"></div>`,fd=>{
     const name=fd.get('name').trim(),code=fd.get('code').trim().toUpperCase();
-    if(l){l.name=name;l.code=code;commit();toast('Line updated');return}
+    if(!code)return 'Enter a short code.';if(S.lines.some(x=>x!==l&&x.code.toUpperCase()===code))return 'Another line already uses that short code.';
+    if(l){l.name=name;l.code=code;renumberMachines();commit();toast('Line updated. Machine codes follow the line code.');return}
     let nid='L'+(S.lines.length+1);while(lById(nid))nid+='x';S.lines.push({id:nid,name,code});commit();toast('Line added')},{submit:l?'Save':'Add line'});
 }
 function deleteLine(id){const l=lById(id),n=S.machines.filter(m=>m.line===id).length;
   if(n){toast('Move or remove the '+n+' machine'+(n>1?'s':'')+' on '+l.name+' first');return}
-  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.lines=S.lines.filter(x=>x.id!==id);commit();toast('Line deleted')})}
+  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.parts.forEach(p=>{if(p.byLine&&p.byLine[id]){p.byLine.main=(p.byLine.main||0)+p.byLine[id];delete p.byLine[id]}});S.lines=S.lines.filter(x=>x.id!==id);commit();toast('Line deleted. Its spare stock moved to main stores.')})}
 function machineForm(id,lineId){
   const m=id?mById(id):null;
   if(!S.lines.length){toast('Add a production line first');return}
   modal(m?'Edit machine':'Add machine',`
-    <div class="field"><label for="f_c">Code</label><input id="f_c" name="code" value="${esc(m?m.id:'')}" placeholder="K2-06" ${m?'disabled':'required'}></div>
+    <div class="field"><label>Code</label><input value="${esc(m?m.id:'Assigned automatically')}" disabled><span class="hint">Line code plus its position in the line, for example SL-01.</span></div>
     <div class="field"><label for="f_l">Production line</label><select id="f_l" name="line">${S.lines.map(l=>`<option value="${l.id}"${l.id===(m?m.line:lineId)?' selected':''}>${esc(l.name)}</option>`).join('')}</select></div>
     <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(m?m.name:'')}" required></div>
     <div class="field"><label for="f_mk">Manufacturer</label><input id="f_mk" name="maker" value="${esc(m?m.maker||'':'')}"></div>
     <div class="field"><label for="f_st">Status</label><select id="f_st" name="status">${opts(['Operational','Maintenance Required','Idle','Decommissioned'],m?m.status:'Operational')}</select></div>`,fd=>{
-    if(m){m.name=fd.get('name').trim();m.line=fd.get('line');m.maker=fd.get('maker');m.status=fd.get('status');commit();toast('Machine updated');return}
-    const code=fd.get('code').trim().toUpperCase();if(!code)return 'Enter a machine code.';if(S.machines.some(x=>x.id===code))return 'That machine code already exists.';
-    S.machines.push({id:code,code:'MC-'+code,name:fd.get('name').trim(),line:fd.get('line'),maker:fd.get('maker'),status:fd.get('status'),w:1});commit();toast('Machine added')},{submit:m?'Save':'Add machine'});
+    if(m){const nl=fd.get('line');m.name=fd.get('name').trim();m.maker=fd.get('maker');m.status=fd.get('status');
+      if(nl!==m.line){m.line=nl;S.machines=S.machines.filter(x=>x!==m);S.machines.push(m)}
+      renumberMachines();commit();toast('Machine updated, code '+m.id);return}
+    const nm={id:'~'+newId('m'),code:'',name:fd.get('name').trim(),line:fd.get('line'),maker:fd.get('maker'),status:fd.get('status'),w:1};
+    S.machines.push(nm);renumberMachines();commit();toast('Machine added as '+nm.id)},{submit:m?'Save':'Add machine'});
 }
 function deleteMachine(id){const m=mById(id),ev=S.events.filter(e=>e.machine===id).length,as=S.assets.filter(a=>a.machine===id).length;
   confirmBox('Remove '+esc(m.id)+' '+esc(m.name),'This deletes the machine and its '+ev+' downtime record'+(ev===1?'':'s')+'.'+(as?' '+as+' serial-numbered asset'+(as>1?'s':'')+' fitted to it will become unassigned.':'')+' You can undo this.','Remove machine',()=>{
     S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});
-    S.machines=S.machines.filter(x=>x.id!==id);closeDrawer();commit();toast('Removed machine '+id)})}
+    S.machines=S.machines.filter(x=>x.id!==id);renumberMachines();closeDrawer();commit();toast('Removed machine '+id+'. Remaining codes renumbered.')})}
 function partForm(id){
   const p=id?pById(id):null;
   modal(p?'Edit spare part':'Add spare part',`
@@ -567,7 +614,7 @@ function partForm(id){
     <div class="field"><label for="f_b">Brand</label><input id="f_b" name="brand" value="${esc(p?p.brand:'')}"></div>
     <div class="field"><label for="f_cat">Category</label><select id="f_cat" name="cat">${opts(['Electrical','Mechanical','Pneumatic','Electronic','General'],p?p.cat:'Electrical')}</select></div>
     <div class="field"><label for="f_cost">Unit value (LKR)</label><input id="f_cost" type="number" name="cost" min="0" value="${p?p.cost:0}"></div>
-    <div class="field"><label for="f_s">${p?'In stock':'Opening stock'}</label><input id="f_s" type="number" name="stock" min="0" value="${p?p.stock:0}" ${p?'disabled':''}>${p?'<span class="hint">Use Adjust count to change stock.</span>':''}</div>
+    <div class="field full"><label>${p?'Quantity in stock':'Opening stock'}, by location</label><div class="locgrid">${locKeys().map(k=>`<div class="field"><label for="ls_${k}">${esc(locName(k))}</label><input id="ls_${k}" type="number" min="0" name="ls_${k}" value="${p?(p.byLine[k]||0):0}"></div>`).join('')}</div><span class="hint">Total ${p?p.stock:0} now. Minimum and reorder levels apply to the total across all locations.</span></div>
     <div class="field"><label for="f_min">Minimum stock</label><input id="f_min" type="number" name="min" min="0" value="${p?p.min:2}"></div>
     <div class="field"><label for="f_re">Reorder level</label><input id="f_re" type="number" name="reorder" min="0" value="${p?p.reorder:4}"></div>
     <div class="field"><label for="f_mx">Maximum stock</label><input id="f_mx" type="number" name="max" min="1" value="${p?p.max:8}"></div>
@@ -583,8 +630,9 @@ function partForm(id){
     if(re<min)return 'Reorder level should be at least the minimum stock.';
     const ser=!!fd.get('serialized');if(p&&p.serialized&&!ser&&S.assets.some(a=>a.part===p.id))return 'This part has serial-numbered assets. Remove them first or keep it serialized.';
     const o={code,pn:fd.get('pn'),name:fd.get('name').trim(),brand:fd.get('brand'),cat:fd.get('cat'),serialized:ser,repairable:!!fd.get('repairable'),cost:+fd.get('cost')||0,min,reorder:re,max:mx,lead:+fd.get('lead')||0,loc:fd.get('loc'),supplier:fd.get('supplier'),compat:fd.getAll('compat')};
-    if(p){Object.assign(p,o);commit();toast('Part updated');return}
-    S.parts.push(Object.assign({id:newId('P'),stock:+fd.get('stock')||0},o));commit();toast('Part added')},{submit:p?'Save':'Add part'});
+    const cnt={};locKeys().forEach(k=>{cnt[k]=Math.max(0,parseInt(fd.get('ls_'+k))||0)});
+    if(p){const before=p.stock;Object.assign(p,o);if(locKeys().some(k=>(p.byLine[k]||0)!==cnt[k])){p.byLine=cnt;p.stock=stockTotal(p);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:p.stock-before,machine:'',ref:'Edited in part form',by:'Stores'})}commit();toast('Part updated');return}
+    const np=Object.assign({id:newId('P'),byLine:cnt,stock:0},o);np.stock=stockTotal(np);S.parts.push(np);if(np.stock>0)S.txns.push({id:newId('tx'),t:NOW(),partId:np.id,type:'Opening balance',qty:np.stock,machine:'',ref:'Added part',by:'Stores'});commit();toast('Part added')},{submit:p?'Save':'Add part'});
 }
 function deletePart(id){const p=pById(id),as=S.assets.filter(a=>a.part===id).length,po=openPO(id).length;
   if(as){toast('Remove its '+as+' serial-numbered asset'+(as>1?'s':'')+' first');return}
@@ -685,9 +733,9 @@ function poForm(pid){
 function poReceive(id){
   const o=S.pos.find(x=>x.id===id),p=pById(o.part),left=o.qty-o.recv;
   modal('Receive '+o.id,`<div class="field full"><label>${esc(p.name)} · ${left} still due</label></div>
-    <div class="field"><label for="f_q">Quantity received now</label><input id="f_q" type="number" name="qty" min="1" max="${left}" value="${left}" required></div>`,fd=>{
+    <div class="field"><label for="f_q">Quantity received now</label><input id="f_q" type="number" name="qty" min="1" max="${left}" value="${left}" required></div><div class="field"><label for="f_into">Put into</label><select id="f_into" name="into">${locSel(MAIN)}</select></div>`,fd=>{
     const q=parseInt(fd.get('qty'));if(!(q>0&&q<=left))return 'Enter between 1 and '+left+'.';
-    o.recv+=q;p.stock+=q;o.status=o.recv>=o.qty?'Received':'Partially received';
+    o.recv+=q;addStock(p,fd.get('into')||MAIN,q);o.status=o.recv>=o.qty?'Received':'Partially received';
     S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Purchase',qty:q,machine:'',ref:o.id,by:'Stores'});commit();toast(q+' received into stock')},{submit:'Receive'});
 }
 const supList=()=>'<datalist id="supList">'+[...new Set(SUPPLIERS.concat(S.parts.map(x=>x.supplier),S.pos.map(o=>o.supplier)).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join('')+'</datalist>';
@@ -711,7 +759,7 @@ function repairAdvance(id){
   const r=S.repairs.find(x=>x.id===id),a=aById(r.asset),i=R_FLOW.indexOf(r.status);if(i>=R_FLOW.length-1)return;
   r.status=R_FLOW[i+1];
   if(r.status==='At repairer'){r.sent=NOW();a.status='Under repair ('+r.type.toLowerCase()+')';a.loc=r.repairer+(r.country?', '+r.country:'')}
-  if(r.status==='Returned'){r.returned=NOW();a.status='In stores';a.machine='';a.loc='Electrical stores (returned from repair)';const p=pById(a.part);p.stock+=1;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Repair return',qty:1,machine:'',ref:r.id,by:'Stores'})}
+  if(r.status==='Returned'){r.returned=NOW();a.status='In stores';a.machine='';a.loc='Electrical stores (returned from repair)';const p=pById(a.part);addStock(p,MAIN,1);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Repair return',qty:1,machine:'',ref:r.id,by:'Stores'})}
   commit();toast('Repair moved to '+r.status);
 }
 
@@ -732,12 +780,13 @@ function kpi(l,v,sm,d,cls=''){return `<div class="card kpi ${cls}"><span class="
 
 /* ---------- period helpers ---------- */
 const Y0=t=>new Date(new Date(t).getFullYear(),0,1).getTime();
-function ovBounds(){
-  const r=ui.ovRange,now=NOW();let from,pf=null,pt=null,label,plabel='previous period';
+const ovBounds=()=>boundsFor(ui.ovRange,ui.ovMonth,ui.ovYear);
+function boundsFor(r,mo,yr){
+  const now=NOW();let from,pf=null,pt=null,label,plabel='previous period';
   if(r==='ytd'){const d=new Date(now);from=Y0(now);pf=new Date(d.getFullYear()-1,0,1).getTime();pt=new Date(d.getFullYear()-1,d.getMonth(),d.getDate(),d.getHours(),d.getMinutes()).getTime();label='this year so far';plabel='same period last year'}
   else if(r==='tm'||r==='lm'||r==='month'||r==='year'){
     const d=new Date(now);let y=d.getFullYear(),m=d.getMonth(),whole=false;
-    if(r==='lm'){m-=1}else if(r==='month'){y=+ui.ovYear;m=+ui.ovMonth}else if(r==='year'){y=+ui.ovYear;whole=true}
+    if(r==='lm'){m-=1}else if(r==='month'){y=+yr;m=+mo}else if(r==='year'){y=+yr;whole=true}
     if(whole){from=new Date(y,0,1).getTime();const to2=new Date(y+1,0,1).getTime();pf=new Date(y-1,0,1).getTime();pt=from;label='the year '+y;plabel=String(y-1);return {from,to:to2,pf,pt,label,plabel}}
     from=new Date(y,m,1).getTime();const to2=new Date(y,m+1,1).getTime(),pm=new Date(y,m-1,1);pf=pm.getTime();pt=from;
     if(r==='tm'){pt=pf+(now-from);label='this month, '+MONF[m]+' '+y;plabel='the same point last month'}
@@ -785,11 +834,11 @@ function groupChart(buckets,series,aria){
   for(let i=0;i<=4;i++){const v=top*i/4,y=T+ph-ph*i/4;g+=`<line class="grid-l" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${short(v)}</text>`}
   buckets.forEach((b,i)=>{series.forEach((se,j)=>{const v=se.vals[i];if(v>0){const h=ph*v/top,x=L+i*bw+bw*.11+j*w;g+=`<rect x="${x}" y="${T+ph-h}" width="${Math.max(1,w-1)}" height="${h}" rx="2" style="fill:${se.color}"><title>${esc(se.name)}, ${b.label}: LKR ${Math.round(v).toLocaleString('en-US')}</title></rect>`}});g+=`<text x="${L+i*bw+bw/2}" y="${H-8}" text-anchor="middle">${b.label}</text>`});
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">${g}</svg></div>`}
-const periodPicker=(cur)=>{const cy=new Date().getFullYear(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date)),y0=new Date(t0).getFullYear(),ys=[];for(let y=cy+2;y>=y0;y--)ys.push(y);const act=cur==='month'||cur==='year';
-  return `<div class="seg" role="group" aria-label="Period">${[['tm','This month'],['lm','Last month'],['30','30 days'],['90','90 days'],['365','12 months'],['ytd','This year'],['all','All time']].map(([v,l])=>`<button data-act="setF" data-k="ovRange" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
+const periodPicker=(kind)=>{const cur=ui[kind+'Range'],mk=kind+'Month',yk=kind+'Year',cy=new Date().getFullYear(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date)),y0=new Date(t0).getFullYear(),ys=[];for(let y=cy+2;y>=y0;y--)ys.push(y);const act=cur==='month'||cur==='year';
+  return `<div class="seg" role="group" aria-label="Period">${[['7','7 days'],['tm','This month'],['lm','Last month'],['30','30 days'],['90','90 days'],['365','12 months'],['ytd','This year'],['all','All time']].map(([v,l])=>`<button data-act="setF" data-k="${kind}Range" data-v="${v}" aria-pressed="${cur===v}">${l}</button>`).join('')}</div>
   <span style="color:var(--muted)">or pick</span>
-  <select data-f="ovMonth" aria-label="Month" ${act?'style="border-color:var(--accent)"':''}><option value="all"${ui.ovMonth==='all'?' selected':''}>Whole year</option>${MONF.map((m,i)=>`<option value="${i}"${String(i)===String(ui.ovMonth)?' selected':''}>${m}</option>`).join('')}</select>
-  <select data-f="ovYear" aria-label="Year" ${act?'style="border-color:var(--accent)"':''}>${ys.map(y=>`<option value="${y}"${y===+ui.ovYear?' selected':''}>${y}</option>`).join('')}</select>`};
+  <select data-f="${mk}" aria-label="Month" ${act?'style="border-color:var(--accent)"':''}><option value="all"${ui[mk]==='all'?' selected':''}>Whole year</option>${MONF.map((m,i)=>`<option value="${i}"${String(i)===String(ui[mk])?' selected':''}>${m}</option>`).join('')}</select>
+  <select data-f="${yk}" aria-label="Year" ${act?'style="border-color:var(--accent)"':''}>${ys.map(y=>`<option value="${y}"${y===+ui[yk]?' selected':''}>${y}</option>`).join('')}</select>`};
 
 function hbars(rows,max,cls=''){if(!rows.length)return '<div class="empty">No downtime in this period.</div>';return `<div class="hb-list">${rows.map(r=>`<div class="hb-row"><span class="lab" title="${esc(r.l)}">${r.click?`<button class="link" data-act="openMachine" data-id="${esc(r.click)}">${esc(r.l)}</button>`:esc(r.l)}</span><span class="trk" style="height:10px;background:var(--surface-2);border-radius:5px;border:1px solid var(--line);overflow:hidden"><span style="display:block;height:100%;width:${Math.max(2,r.v/max*100)}%;background:${r.c||'var(--crit)'};border-radius:4px"></span></span><span class="val mono" style="text-align:right;font-size:12px;color:var(--muted)">${esc(r.t)}</span></div>`).join('')}</div>`}
 
@@ -807,7 +856,7 @@ function vOverview(){
   const top=S.machines.map(m=>({m,v:sum(cur.filter(e=>e.machine===m.id))})).filter(x=>x.v).sort((a,b)=>b.v-a.v).slice(0,6);
   const tb=timeBins(B.from,B.to);fillBins(tb.bins);
   const pl=B.plabel;
-  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${periodPicker(ui.ovRange)}<span style="color:var(--muted)">Showing ${esc(B.label)}${B.from>NOW()?'. This period has not started yet.':(!hasPrev&&ui.ovRange!=='all'?'. No earlier data to compare with.':'')}</span></div><button class="btn" data-act="nav" data-id="reports">Month and year reports →</button></div>${alerts}
+  return `<div class="filters" style="justify-content:space-between"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${periodPicker('ov')}<span style="color:var(--muted)">Showing ${esc(B.label)}${B.from>NOW()?'. This period has not started yet.':(!hasPrev&&ui.ovRange!=='all'?'. No earlier data to compare with.':'')}</span></div><button class="btn" data-act="nav" data-id="reports">Month and year reports →</button></div>${alerts}
   <div class="grid g-kpi">
     ${kpi('Machines down now',down.length,'/ '+S.machines.filter(m=>m.status!=='Decommissioned').length,mt?mt+' more need maintenance':'None flagged for maintenance',down.length?'bad':'good')}
     ${kpi('Unplanned downtime',fHrs(sum(cur)),'h',delta(sum(cur),prev&&sum(prev),pl))}
@@ -881,8 +930,8 @@ function vReports(){
 }
 
 function dtFiltered(){
-  const days=+ui.dtRange,q=ui.dtQ.toLowerCase();
-  return range(days,0,e=>(!ui.dtLine||(mById(e.machine)||{}).line===ui.dtLine)&&(!ui.dtType||e.type===ui.dtType)&&(!q||(e.machine+' '+(mById(e.machine)||{}).name+' '+e.cause+' '+e.desc+' '+e.tech).toLowerCase().includes(q))).sort((a,b)=>evStart(b)-evStart(a));
+  const B=boundsFor(ui.dtRange,ui.dtMonth,ui.dtYear),q=ui.dtQ.toLowerCase();
+  return evIn(B.from,B.to,e=>(!ui.dtLine||(mById(e.machine)||{}).line===ui.dtLine)&&(!ui.dtType||e.type===ui.dtType)&&(!q||(e.machine+' '+(mById(e.machine)||{}).name+' '+e.cause+' '+e.desc+' '+e.tech).toLowerCase().includes(q))).sort((a,b)=>evStart(b)-evStart(a));
 }
 function dtResults(){
   const evs=dtFiltered(),un=evs.filter(e=>e.type==='Unplanned'),cl=un.filter(e=>e.end);
@@ -909,7 +958,7 @@ function dtResults(){
 function vDowntime(){
   const od=openEvents().map(e=>{const m=mById(e.machine);return `<div class="alert"><div class="grow"><b>${esc(m.id)} ${esc(m.name)} is down.</b> ${esc(e.cause)}. ${esc(e.desc||'')}<div class="sub">Since ${fDT(evStart(e))}</div></div><span class="timer num">${fDur(evMin(e))}</span><button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button></div>`}).join('');
   return `${od}<div class="filters">
-    <div class="seg" role="group" aria-label="Period">${['7','30','90'].map(d=>`<button data-act="setF" data-k="dtRange" data-v="${d}" aria-pressed="${ui.dtRange===d}">${d} days</button>`).join('')}</div>
+    ${periodPicker('dt')}
     <select data-f="dtLine" aria-label="Line"><option value="">All lines</option>${opts(S.lines.map(l=>[l.id,l.name]),ui.dtLine)}</select>
     <select data-f="dtType" aria-label="Type"><option value="">Planned and unplanned</option>${opts(['Unplanned','Planned'],ui.dtType)}</select>
     <input type="search" data-f="dtQ" placeholder="Search machine, cause, technician" value="${esc(ui.dtQ)}" aria-label="Search"></div>
@@ -920,7 +969,7 @@ function gauge(p,lg){const s=stock(p),mx=Math.max(p.max||0,p.reorder*1.4,p.stock
   return `<div class="gauge ${lg?'lg':''}" title="Min ${p.min}, reorder ${p.reorder}"><div class="f" style="width:${Math.min(100,p.stock/mx*100)}%;background:${col}"></div><div class="tick" style="left:${p.min/mx*100}%"></div><div class="tick" style="left:${p.reorder/mx*100}%;opacity:.3"></div></div>`}
 function partsFiltered(){const q=ui.partQ.toLowerCase();return S.parts.filter(p=>(!ui.partCat||p.cat===ui.partCat)&&(!ui.partSt||stock(p).k===ui.partSt)&&(!q||(p.name+' '+p.code+' '+p.pn+' '+p.brand).toLowerCase().includes(q))).sort((a,b)=>stock(a).r-stock(b).r||a.name.localeCompare(b.name))}
 function partsResults(){
-  const rows=partsFiltered().map(p=>{const s=stock(p),oo=onOrder(p.id);return `<tr class="click" data-act="openPart" data-id="${p.id}" tabindex="0"><td><div class="name">${esc(p.name)}</div><div class="sub mono">${esc(p.code)} · ${esc(p.pn)} · ${esc(p.brand)}</div></td><td>${esc(p.cat)}${p.serialized?'<div class="sub">Serialized</div>':''}</td><td style="min-width:150px"><div style="display:flex;gap:10px;align-items:center"><span class="num" style="min-width:28px;font-weight:600">${p.stock}</span>${gauge(p)}</div><div class="sub">min ${p.min} · reorder ${p.reorder}${oo?` · <b>+${oo}</b> on order`:''}</div></td><td>${esc(p.loc)}</td><td class="r mono">${lkr(p.cost)}</td><td>${statusBadge(s.k,s.c)}</td></tr>`}).join('');
+  const rows=partsFiltered().map(p=>{const s=stock(p),oo=onOrder(p.id);return `<tr class="click" data-act="openPart" data-id="${p.id}" tabindex="0"><td><div class="name">${esc(p.name)}</div><div class="sub mono">${esc(p.code)} · ${esc(p.pn)} · ${esc(p.brand)}</div></td><td>${esc(p.cat)}${p.serialized?'<div class="sub">Serialized</div>':''}</td><td style="min-width:150px"><div style="display:flex;gap:10px;align-items:center"><span class="num" style="min-width:28px;font-weight:600">${p.stock}</span>${gauge(p)}</div><div class="sub">min ${p.min} · reorder ${p.reorder}${oo?` · <b>+${oo}</b> on order`:''}</div><div class="sub mono">${esc(locLine(p))}</div></td><td>${esc(p.loc)}</td><td class="r mono">${lkr(p.cost)}</td><td>${statusBadge(s.k,s.c)}</td></tr>`}).join('');
   return `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Stock</th><th>Location</th><th class="r">Unit value</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="6"><div class="empty">No parts match.</div></td></tr>'}</tbody></table></div></div>`;
 }
 function vParts(){
@@ -939,7 +988,7 @@ function vParts(){
 
 function vMachines(){
   return S.lines.map(l=>{const ms=S.machines.filter(m=>m.line===l.id);
-    return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>${esc(l.name)}</h2><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><small>${ms.length} machines</small><button class="btn sm" data-act="newMachine" data-id="${l.id}">Add machine</button><button class="btn sm ghost" data-act="editLine" data-id="${l.id}">Edit line</button><button class="btn sm ghost danger" data-act="deleteLine" data-id="${l.id}">Delete line</button></div></div><div class="tbl-wrap"><table><thead><tr><th>Machine</th><th>Status</th><th class="r">Stops (90d)</th><th class="r">Unplanned (90d)</th><th class="r">Avg repair</th><th>Fitted spares</th></tr></thead><tbody>${ms.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned'),cl=ev.filter(e=>e.end);return `<tr class="click" data-act="openMachine" data-id="${esc(m.id)}" tabindex="0"><td><div class="name">${esc(m.name)}</div><div class="sub mono">${esc(m.id)} · ${esc(m.maker||'')}</div></td><td>${stChip(mStatus(m))}</td><td class="r mono">${ev.length}</td><td class="r mono">${fDur(sum(ev))}</td><td class="r mono">${cl.length?fDur(sum(cl)/cl.length):'–'}</td><td class="mono">${S.parts.filter(p=>p.compat.includes(m.id)).length} parts</td></tr>`}).join('')}</tbody></table></div></div>`}).join('');
+    return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>${esc(l.name)}</h2><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><small>${ms.length} machines</small><button class="btn sm" data-act="newMachine" data-id="${l.id}">Add machine</button><button class="btn sm ghost" data-act="editLine" data-id="${l.id}">Edit line</button><button class="btn sm ghost danger" data-act="deleteLine" data-id="${l.id}">Delete line</button></div></div><div class="tbl-wrap"><table><thead><tr><th>Order</th><th>Machine</th><th>Status</th><th class="r">Stops (90d)</th><th class="r">Unplanned (90d)</th><th class="r">Avg repair</th><th>Fitted spares</th></tr></thead><tbody>${ms.map((m,i)=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned'),cl=ev.filter(e=>e.end);return `<tr class="click" data-act="openMachine" data-id="${esc(m.id)}" tabindex="0"><td style="white-space:nowrap"><button class="btn sm ghost" data-act="moveMachine" data-id="${esc(m.id)}" data-dir="-1" aria-label="Move up" ${i===0?'disabled':''}>▲</button><button class="btn sm ghost" data-act="moveMachine" data-id="${esc(m.id)}" data-dir="1" aria-label="Move down" ${i===ms.length-1?'disabled':''}>▼</button></td><td><div class="name">${esc(m.name)}</div><div class="sub mono">${esc(m.id)} · ${esc(m.maker||'')}</div></td><td>${stChip(mStatus(m))}</td><td class="r mono">${ev.length}</td><td class="r mono">${fDur(sum(ev))}</td><td class="r mono">${cl.length?fDur(sum(cl)/cl.length):'–'}</td><td class="mono">${S.parts.filter(p=>p.compat.includes(m.id)).length} parts</td></tr>`}).join('')}</tbody></table></div></div>`}).join('');
 }
 
 function assetsResults(){
@@ -976,18 +1025,19 @@ function machineDrawer(id){return ()=>{const m=mById(id);if(!m)return '';const l
    ${o?'':`<select data-mstatus="${esc(id)}" aria-label="Set status">${opts(['Operational','Maintenance Required','Idle','Decommissioned'],m.status)}</select>`}</div></div>
   <div class="sec" style="display:flex;gap:8px"><button class="btn sm ghost" data-act="editMachine" data-id="${esc(id)}">Edit machine</button><button class="btn sm ghost danger" data-act="deleteMachine" data-id="${esc(id)}">Remove machine</button></div>
   <div class="sec"><h4>Last 90 days</h4><div class="facts"><div><span>Stops</span><b class="num">${ev.length}</b></div><div><span>Unplanned downtime</span><b class="num">${fDur(sum(un))}</b></div><div><span>Average repair time</span><b class="num">${cl.length?fDur(sum(cl)/cl.length):'–'}</b></div><div><span>Manufacturer</span><b>${esc(m.maker||'–')}</b></div></div></div>
-  <div class="sec"><h4>Spares that fit this machine</h4><div class="row-list">${S.parts.filter(p=>p.compat.includes(id)).sort((a,b)=>stock(a).r-stock(b).r).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.stock} in stock</div></div>${statusBadge(s.k,s.c)}</div>`}).join('')||'<div class="sub">No parts linked yet.</div>'}</div></div>
+  <div class="sec"><h4>Spares that fit this machine</h4><div class="row-list">${S.parts.filter(p=>p.compat.includes(id)).sort((a,b)=>stock(a).r-stock(b).r).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.byLine[m.line]||0} on ${esc(l.code)} · ${p.stock} in total</div></div>${statusBadge(s.k,s.c)}</div>`}).join('')||'<div class="sub">No parts linked yet.</div>'}</div></div>
   ${S.assets.some(a=>a.machine===id)?`<div class="sec"><h4>Serial-numbered assets fitted</h4>${S.assets.filter(a=>a.machine===id).map(a=>`<div class="item"><div class="grow"><div class="t mono">${esc(a.serial)}</div><div class="s">${esc((pById(a.part)||{}).name||'')}</div></div>${statusBadge(a.status,a.status==='Active on line'?'ok':'warn')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Recent stops</h4><div class="row-list">${ev.slice(0,7).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.cause)}</div><div class="s">${fDT(evStart(e))} · ${esc(e.desc||'')}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')||'<div class="sub">No stops in 90 days.</div>'}</div></div>`}}
 function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=stock(p),tx=S.txns.filter(t=>t.partId===id).sort((a,b)=>b.t-a.t).slice(0,8),pos=openPO(id),as=S.assets.filter(a=>a.part===id);
   return `<div class="drawer-h"><div><div class="mono sub">${esc(p.code)} · ${esc(p.pn)}</div><h2>${esc(p.name)}</h2><div style="margin-top:6px;display:flex;gap:6px">${statusBadge(s.k,s.c)}${p.serialized?statusBadge('Serialized','info'):''}${p.repairable?statusBadge('Repairable',''):''}</div></div><button class="btn sm x" data-act="closeDrawer" aria-label="Close">${ic('x')}</button></div>
   <div class="sec"><div style="display:flex;align-items:baseline;gap:8px"><span class="kpi"><span class="v num" style="font-size:46px">${p.stock}</span></span><span class="sub">in stock · min ${p.min} · reorder ${p.reorder} · max ${p.max}</span></div>${gauge(p,true)}
-   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm ghost" data-act="editPart" data-id="${id}">Edit part</button><button class="btn sm ghost danger" data-act="deletePart" data-id="${id}">Delete part</button></div></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockTransfer" data-id="${id}">Move</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm ghost" data-act="editPart" data-id="${id}">Edit part</button><button class="btn sm ghost danger" data-act="deletePart" data-id="${id}">Delete part</button></div></div>
+  <div class="sec"><h4>Stock by location</h4>${locKeys().map(k=>{const q=p.byLine[k]||0,mx=Math.max(p.stock,1);return `<div class="locbar"><span class="n">${esc(locName(k))}</span><div class="gauge"><div class="f" style="width:${q/mx*100}%;background:var(--accent)"></div></div><span class="num" style="min-width:28px;text-align:right;font-weight:600">${q}</span></div>`}).join('')}</div>
   <div class="sec"><h4>Details</h4><div class="facts"><div><span>Brand</span><b>${esc(p.brand)}</b></div><div><span>Category</span><b>${esc(p.cat)}</b></div><div><span>Location</span><b>${esc(p.loc)}</b></div><div><span>Unit value</span><b class="num">${lkr(p.cost)}</b></div><div><span>Supplier</span><b>${esc(p.supplier)}</b></div><div><span>Lead time</span><b class="num">${p.lead} days</b></div></div></div>
   ${pos.length?`<div class="sec"><h4>On order</h4>${pos.map(o=>`<div class="item"><div class="grow"><div class="t mono">${esc(o.id)}</div><div class="s">${o.qty-o.recv} due ${o.eta?fDate(o.eta):''}</div></div>${statusBadge(o.status,'info')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Fits ${p.compat.length} machines</h4><div style="display:flex;gap:6px;flex-wrap:wrap">${p.compat.map(c=>`<button class="chip plain" style="border:0;cursor:pointer" data-act="openMachine" data-id="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="sub">None linked</span>'}</div></div>
   ${as.length?`<div class="sec"><h4>Serial numbers</h4>${as.map(a=>`<div class="item"><div class="grow"><div class="t mono">${esc(a.serial)}</div><div class="s">${esc(a.loc)}</div></div>${statusBadge(a.status,a.status==='Active on line'?'ok':'warn')}</div>`).join('')}</div>`:''}
-  <div class="sec"><h4>Movements</h4>${tx.map(t=>`<div class="item"><div class="grow"><div class="t">${esc(t.type)}</div><div class="s">${fDate(t.t)}${t.machine?' · '+esc(t.machine):''}${t.ref?' · '+esc(t.ref):''}</div></div><span class="mono ${t.qty<0?'up':'down'}">${t.qty>0?'+':''}${t.qty}</span></div>`).join('')||'<div class="sub">No movements recorded.</div>'}</div>`}}
+  <div class="sec"><h4>Movements</h4>${tx.map(t=>`<div class="item"><div class="grow"><div class="t">${esc(t.type)}</div><div class="s">${fDate(t.t)}${t.machine?' · '+esc(t.machine):''}${t.ref?' · '+esc(t.ref):''}${t.loc?' · '+esc(t.loc):''}</div></div>${t.type==='Transfer'?`<span class="mono">⇄ ${t.qty}</span>`:`<span class="mono ${t.qty<0?'up':'down'}">${t.qty>0?'+':''}${t.qty}</span>`}</div>`).join('')||'<div class="sub">No movements recorded.</div>'}</div>`}}
 
 
 /* ---------- cloud sync (Supabase REST) ---------- */
@@ -1012,7 +1062,7 @@ async function sb(path,o){o=o||{};const base=cfg.url.replace(/\/+$/,'').replace(
   const r=await fetch(base+'/rest/v1/'+path,{method:o.method||'GET',headers:Object.assign({apikey:cfg.key,Authorization:'Bearer '+cfg.key,'Content-Type':'application/json'},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});
   const tx=await r.text();if(!r.ok)throw new Error('HTTP '+r.status+' '+tx.slice(0,200));return tx?JSON.parse(tx):null}
 async function pullCloud(){const rows=await sb('linewatch_state?id=eq.'+encodeURIComponent(cfg.row)+'&select=rev,data,updated_at');return rows&&rows.length?rows[0]:null}
-function adopt(c){S=c.data;S.rev=c.rev;S.dirty=false;sync.conflict=false;undoStack=[];redoStack=[];lastSnap=snap();save();render()}
+function adopt(c){S=c.data;S.rev=c.rev;S.dirty=false;sync.conflict=false;migrate();undoStack=[];redoStack=[];lastSnap=snap();save();render()}
 function scheduleSync(){if(!sbOn()||!cfg.auto||sync.conflict)return;clearTimeout(pt);setSync('pending','Unsynced changes');pt=setTimeout(()=>doSync(false),1200)}
 async function doSync(manual){
   if(!sbOn()||pushing)return;pushing=true;setSync('busy','Syncing…');const e0=edits;
@@ -1040,7 +1090,7 @@ function tables(){
   const mn=id=>{const m=mById(id);return m?m.name:''},ln=id=>{const m=mById(id);return m?lById(m.line).name:''};
   const pc=id=>{const p=pById(id);return p?p.code:''},pn=id=>{const p=pById(id);return p?p.name:''};
   return {
-   'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)']].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost])),
+   'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k)))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)))),
    'Machines':[['Code','Name','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
@@ -1149,8 +1199,9 @@ const ACT={
  logDowntime:b=>logDowntime(b.dataset.id),
  resolveDowntime:b=>logDowntime(null,b.dataset.id),
  deleteEvent:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Confirm?';setTimeout(()=>{b.dataset.armed='';b.textContent='Delete'},3000);return}S.events=S.events.filter(e=>e.id!==b.dataset.id);commit();toast('Event deleted')},
- setF:b=>{ui[b.dataset.k]=b.dataset.v;render()},
+ setF:b=>{ui[b.dataset.k]=b.dataset.v;if(b.dataset.k==='dtRange')ui.dtLimit=0;render()},
  stockIssue:b=>stockModal('issue',b.dataset.id),stockReceive:b=>stockModal('receive',b.dataset.id),stockAdjust:b=>stockModal('adjust',b.dataset.id),
+ moveMachine:b=>moveMachine(b.dataset.id,+b.dataset.dir),stockTransfer:b=>stockModal('transfer',b.dataset.id),
  newPart:()=>partForm(),newMachine:b=>machineForm(null,b.dataset.id),newPO:b=>poForm(b.dataset.id),newRepair:b=>repairForm(b.dataset.id),
  undo,redo,newLine:()=>lineForm(),editLine:b=>lineForm(b.dataset.id),deleteLine:b=>deleteLine(b.dataset.id),editMachine:b=>machineForm(b.dataset.id),deleteMachine:b=>deleteMachine(b.dataset.id),
  editPart:b=>partForm(b.dataset.id),deletePart:b=>deletePart(b.dataset.id),newAsset:()=>assetForm(),editAsset:b=>assetForm(b.dataset.id),deleteAsset:b=>deleteAsset(b.dataset.id),
@@ -1173,13 +1224,14 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey||e.metaKey)&&!/INPUT|TEXTAREA|SELECT/.test(tg)){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();undo();return}if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();redo();return}}
   if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
   if((e.key==='Enter'||e.key===' ')&&e.target.tagName==='TR'&&e.target.dataset.act){e.preventDefault();ACT[e.target.dataset.act](e.target)}});
-function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;if(t.dataset.f==='ovMonth'||t.dataset.f==='ovYear')ui.ovRange=ui.ovMonth==='all'?'year':'month';const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
+function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';if(pm[1]==='dt')ui.dtLimit=0;render();return}const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
 document.addEventListener('change',e=>{if(e.target.type==='search')return;onFilter(e)});
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
+if(migrate()){S.dirty=true;lastSnap=snap();save()}
 render();
 updateStatus();
 if(sbOn())doSync(false);
