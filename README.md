@@ -35,3 +35,5 @@ Use the same workspace name on every device that should share data. If two devic
 - Spare part quantities are kept per location (Main stores plus each line). Use Move to transfer between locations.
 - The Downtime page has the same period controls as the Overview (this month, last month, month and year pickers, all time) and a button to delete the records in the current view.
 - Data & sync: upload your company logo, or clear all sample records in one step (lines, machines and parts are kept).
+- Parts can have serial numbers for some units and not others. Repairs can be raised for a serial-numbered unit or for plain stock quantity, and stock follows the item out and back.
+- Each part records how many units are currently installed on each line (serial-numbered units fitted to machines are counted automatically).

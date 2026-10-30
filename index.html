@@ -402,9 +402,12 @@ function applyBrand(){const m=document.getElementById('brandMark');if(!m)return;
 function setLogo(file){if(!file)return;if(!/^image\//.test(file.type)){toast('Choose an image file (PNG, JPG, SVG)');return}
   const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.brand={logo:c.toDataURL('image/png')};commit();applyBrand();toast('Logo updated')};im.onerror=()=>toast('Could not read that image');im.src=fr.result};fr.readAsDataURL(file)}
 function stockTotal(p){return Object.keys(p.byLine||{}).reduce((a,k)=>a+(+p.byLine[k]||0),0)}
-function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
+function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.fitted){p.fitted={};ch=true}Object.keys(p.fitted).forEach(k=>{if(!lById(k)){delete p.fitted[k];ch=true}});if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
   Object.keys(p.byLine).forEach(k=>{if(k!==MAIN&&!lById(k)){p.byLine[MAIN]=(p.byLine[MAIN]||0)+p.byLine[k];delete p.byLine[k];ch=true}});
   const t=stockTotal(p);if(t!==p.stock){p.stock=t;ch=true}});return ch}
+function fittedOn(p,l){const a=S.assets.filter(x=>x.part===p.id&&x.status==='Active on line'&&(mById(x.machine)||{}).line===l).length;return {n:((p.fitted||{})[l]||0)+a,ser:a}}
+function fittedTotal(p){return S.lines.reduce((t,l)=>t+fittedOn(p,l.id).n,0)}
+function rItem(r){const a=r.asset?aById(r.asset):null,p=pById(a?a.part:r.part),q=r.qty||1;return {a,p,q,label:a?a.serial:'No serial'+(q>1?' × '+q:'')}}
 function addStock(p,loc,q){p.byLine[loc]=(p.byLine[loc]||0)+q;p.stock=stockTotal(p)}
 function takeStock(p,q,pref){const order=[pref,MAIN].concat(S.lines.map(l=>l.id)).filter((k,i,a)=>k&&a.indexOf(k)===i),out=[];let left=q;
   order.forEach(k=>{if(left<=0)return;const have=p.byLine[k]||0,t=Math.min(have,left);if(t>0){p.byLine[k]=have-t;left-=t;out.push({loc:k,q:t})}});p.stock=stockTotal(p);return out}
@@ -619,13 +622,14 @@ function partForm(id){
     <div class="field"><label for="f_cat">Category</label><select id="f_cat" name="cat">${opts(['Electrical','Mechanical','Pneumatic','Electronic','General'],p?p.cat:'Electrical')}</select></div>
     <div class="field"><label for="f_cost">Unit value (LKR)</label><input id="f_cost" type="number" name="cost" min="0" value="${p?p.cost:0}"></div>
     <div class="field full"><label>${p?'Quantity in stock':'Opening stock'}, by location</label><div class="locgrid">${locKeys().map(k=>`<div class="field"><label for="ls_${k}">${esc(locName(k))}</label><input id="ls_${k}" type="number" min="0" name="ls_${k}" value="${p?(p.byLine[k]||0):0}"></div>`).join('')}</div><span class="hint">Total ${p?p.stock:0} now. Minimum and reorder levels apply to the total across all locations.</span></div>
+    <div class="field full"><label>Currently installed on each line (units without serial numbers)</label><div class="locgrid">${S.lines.map(l=>`<div class="field"><label for="fi_${l.id}">${esc(l.name)}</label><input id="fi_${l.id}" type="number" min="0" name="fi_${l.id}" value="${p&&p.fitted?(p.fitted[l.id]||0):0}"></div>`).join('')}</div><span class="hint">How many are running in the machines right now. Serial-numbered units marked "Active on line" are counted automatically on top of this.</span></div>
     <div class="field"><label for="f_min">Minimum stock</label><input id="f_min" type="number" name="min" min="0" value="${p?p.min:2}"></div>
     <div class="field"><label for="f_re">Reorder level</label><input id="f_re" type="number" name="reorder" min="0" value="${p?p.reorder:4}"></div>
     <div class="field"><label for="f_mx">Maximum stock</label><input id="f_mx" type="number" name="max" min="1" value="${p?p.max:8}"></div>
     <div class="field"><label for="f_lt">Lead time (days)</label><input id="f_lt" type="number" name="lead" min="0" value="${p?p.lead:30}"></div>
     <div class="field"><label for="f_loc">Location</label><input id="f_loc" name="loc" value="${esc(p?p.loc:'')}"></div>
     <div class="field"><label for="f_sup">Supplier</label><input id="f_sup" name="supplier" list="supList" value="${esc(p?p.supplier:'')}">${supList()}</div>
-    <div class="field"><label class="chk"><input type="checkbox" name="serialized"${p&&p.serialized?' checked':''}> Tracked by serial number</label></div>
+    <div class="field"><label class="chk"><input type="checkbox" name="serialized"${p&&p.serialized?' checked':''}> Some or all units have serial numbers</label><span class="hint">Tick this if you want to record serial numbers for this part. Units without a serial number still work as a plain quantity.</span></div>
     <div class="field"><label class="chk"><input type="checkbox" name="repairable"${p&&p.repairable?' checked':''}> Can be repaired</label></div>
     <div class="field full"><label>Fits machines</label></div>${machChecks(p?p.compat:[])}`,fd=>{
     const code=fd.get('code').trim().toUpperCase();if(!code)return 'Enter a stores code.';
@@ -635,6 +639,7 @@ function partForm(id){
     const ser=!!fd.get('serialized');if(p&&p.serialized&&!ser&&S.assets.some(a=>a.part===p.id))return 'This part has serial-numbered assets. Remove them first or keep it serialized.';
     const o={code,pn:fd.get('pn'),name:fd.get('name').trim(),brand:fd.get('brand'),cat:fd.get('cat'),serialized:ser,repairable:!!fd.get('repairable'),cost:+fd.get('cost')||0,min,reorder:re,max:mx,lead:+fd.get('lead')||0,loc:fd.get('loc'),supplier:fd.get('supplier'),compat:fd.getAll('compat')};
     const cnt={};locKeys().forEach(k=>{cnt[k]=Math.max(0,parseInt(fd.get('ls_'+k))||0)});
+    o.fitted={};S.lines.forEach(l=>{const n=Math.max(0,parseInt(fd.get('fi_'+l.id))||0);if(n)o.fitted[l.id]=n});
     if(p){const before=p.stock;Object.assign(p,o);if(locKeys().some(k=>(p.byLine[k]||0)!==cnt[k])){p.byLine=cnt;p.stock=stockTotal(p);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:p.stock-before,machine:'',ref:'Edited in part form',by:'Stores'})}commit();toast('Part updated');return}
     const np=Object.assign({id:newId('P'),byLine:cnt,stock:0},o);np.stock=stockTotal(np);S.parts.push(np);if(np.stock>0)S.txns.push({id:newId('tx'),t:NOW(),partId:np.id,type:'Opening balance',qty:np.stock,machine:'',ref:'Added part',by:'Stores'});commit();toast('Part added')},{submit:p?'Save':'Add part'});
 }
@@ -643,7 +648,7 @@ function deletePart(id){const p=pById(id),as=S.assets.filter(a=>a.part===id).len
   if(po){toast('Cancel or receive its open purchase order first');return}
   const tx=S.txns.filter(t=>t.partId===id).length;
   confirmBox('Delete '+esc(p.code)+' '+esc(p.name),'This deletes the part, its '+tx+' stock movement'+(tx===1?'':'s')+' and its links to machines. Past downtime records stay but will no longer list this part. You can undo this.','Delete part',()=>{
-    S.parts=S.parts.filter(x=>x.id!==id);S.txns=S.txns.filter(t=>t.partId!==id);S.pos=S.pos.filter(o=>o.part!==id);
+    S.parts=S.parts.filter(x=>x.id!==id);S.repairs=S.repairs.filter(r=>r.part!==id);S.txns=S.txns.filter(t=>t.partId!==id);S.pos=S.pos.filter(o=>o.part!==id);
     S.events.forEach(e=>{e.parts=(e.parts||[]).filter(u=>u.partId!==id);if(e.blocked===id)delete e.blocked});closeDrawer();commit();toast('Deleted part '+p.code)})}
 const ASSET_ST=['Active on line','In stores','Under repair (local)','Under repair (abroad)','Scrapped'];
 function assetForm(id,partId){
@@ -701,9 +706,9 @@ function poEdit(id){
 function deletePO(id){const o=S.pos.find(x=>x.id===id);
   confirmBox('Delete '+esc(o.id),'This removes the purchase order record.'+(o.recv?' Stock already received stays in stores.':'')+' You can undo this.','Delete PO',()=>{S.pos=S.pos.filter(x=>x.id!==id);commit();toast('Deleted '+id)})}
 function repairEdit(id){
-  const r=S.repairs.find(x=>x.id===id),a=aById(r.asset);
+  const r=S.repairs.find(x=>x.id===id),it=rItem(r);
   modal('Edit repair',`
-    <div class="field full"><label>Asset</label><input value="${esc(a?a.serial:'')}" disabled></div>
+    <div class="field full"><label>Item</label><input value="${esc(it.label+' · '+(it.p?it.p.name:''))}" disabled></div>
     <div class="field"><label for="f_t">Where</label><select id="f_t" name="type">${opts(['Local','Abroad'],r.type)}</select></div>
     <div class="field"><label for="f_rp">Repairer</label><input id="f_rp" name="repairer" value="${esc(r.repairer)}" required></div>
     <div class="field"><label for="f_co">Country</label><input id="f_co" name="country" value="${esc(r.country||'')}"></div>
@@ -713,9 +718,9 @@ function repairEdit(id){
     <div class="field full"><label for="f_f">Fault</label><textarea id="f_f" name="fault">${esc(r.fault||'')}</textarea></div>`,fd=>{
     r.type=fd.get('type');r.repairer=fd.get('repairer');r.country=fd.get('country');r.expected=Date.parse(fd.get('eta'))||null;r.costLKR=+fd.get('cost')||0;r.ref=fd.get('ref');r.fault=fd.get('fault');commit();toast('Repair updated')},{submit:'Save'});
 }
-function deleteRepair(id){const r=S.repairs.find(x=>x.id===id),a=aById(r.asset);
-  confirmBox('Delete repair record','This removes the repair'+(a?' for '+esc(a.serial):'')+'.'+(a&&/Under repair/.test(a.status)?' The asset will be set back to "In stores".':'')+' You can undo this.','Delete repair',()=>{
-    if(a&&/Under repair/.test(a.status)){a.status='In stores'}S.repairs=S.repairs.filter(x=>x.id!==id);commit();toast('Repair deleted')})}
+function deleteRepair(id){const r=S.repairs.find(x=>x.id===id),it=rItem(r),a=it.a,out=r.sent&&r.status!=='Returned';
+  confirmBox('Delete repair record','This removes the repair for '+esc(it.label)+'.'+(a&&/Under repair/.test(a.status)?' The asset will be set back to "In stores".':'')+(out&&r.fromStock?' The '+it.q+' sent from stock will be put back in main stores.':'')+' You can undo this.','Delete repair',()=>{
+    if(a&&/Under repair/.test(a.status)){a.status='In stores'}if(out&&r.fromStock&&it.p)addStock(it.p,MAIN,it.q);S.repairs=S.repairs.filter(x=>x.id!==id);commit();toast('Repair deleted')})}
 
 
 /* ---------- actions: purchasing & repairs ---------- */
@@ -745,10 +750,13 @@ function poReceive(id){
 const supList=()=>'<datalist id="supList">'+[...new Set(SUPPLIERS.concat(S.parts.map(x=>x.supplier),S.pos.map(o=>o.supplier)).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join('')+'</datalist>';
 const R_FLOW=['Requested','At repairer','Completed','Returned'];
 function repairForm(aid){
-  const cand=S.assets.filter(a=>pById(a.part).repairable&&!/Under repair/.test(a.status));
-  if(!cand.length){toast('No repairable assets available');return}
-  modal('Send asset for repair',`
-    <div class="field full"><label for="f_a">Asset</label><select id="f_a" name="asset">${cand.map(a=>`<option value="${a.id}"${a.id===aid?' selected':''}>${esc(a.serial+' · '+pById(a.part).name+' ('+a.status+')')}</option>`).join('')}</select></div>
+  const sa=S.assets.filter(a=>pById(a.part).repairable&&!/Under repair|Scrapped/.test(a.status)),up=S.parts.filter(p=>p.repairable&&p.stock>0);
+  if(!sa.length&&!up.length){toast('Nothing repairable is available');return}
+  const pf=modal('Send item for repair',`
+    <div class="field full"><label for="f_a">Item</label><select id="f_a" name="item">
+      ${sa.length?`<optgroup label="With serial number">${sa.map(a=>`<option value="a:${a.id}"${a.id===aid?' selected':''}>${esc(a.serial+' · '+pById(a.part).name+' ('+a.status+')')}</option>`).join('')}</optgroup>`:''}
+      ${up.length?`<optgroup label="Without serial number (from stock)">${up.map(p=>`<option value="p:${p.id}">${esc(p.code+' · '+p.name+' ('+p.stock+' in stock)')}</option>`).join('')}</optgroup>`:''}</select></div>
+    <div class="field" id="qtyBox"><label for="f_qty">Quantity</label><input id="f_qty" type="number" name="qty" min="1" value="1"></div>
     <div class="field"><label for="f_t">Where</label><select id="f_t" name="type"><option>Local</option><option>Abroad</option></select></div>
     <div class="field"><label for="f_rp">Repairer</label><input id="f_rp" name="repairer" required placeholder="Service centre name"></div>
     <div class="field"><label for="f_co">Country</label><input id="f_co" name="country" value="Sri Lanka"></div>
@@ -756,15 +764,23 @@ function repairForm(aid){
     <div class="field"><label for="f_c">Quoted cost (LKR)</label><input id="f_c" type="number" name="cost" min="0" value="0"></div>
     <div class="field"><label for="f_rf">Reference / RMA</label><input id="f_rf" name="ref"></div>
     <div class="field full"><label for="f_f">Fault</label><textarea id="f_f" name="fault"></textarea></div>`,fd=>{
-    S.repairs.push({id:newId('R'),asset:fd.get('asset'),type:fd.get('type'),repairer:fd.get('repairer'),country:fd.get('country'),sent:null,expected:Date.parse(fd.get('eta'))||null,costLKR:+fd.get('cost')||0,ref:fd.get('ref'),fault:fd.get('fault'),status:'Requested'});
-    commit();toast('Repair request created')},{submit:'Create request'});
+    const it=fd.get('item')||'',kind=it.slice(0,1),id=it.slice(2),r={id:newId('R'),type:fd.get('type'),repairer:fd.get('repairer'),country:fd.get('country'),sent:null,expected:Date.parse(fd.get('eta'))||null,costLKR:+fd.get('cost')||0,ref:fd.get('ref'),fault:fd.get('fault'),status:'Requested'};
+    if(kind==='a')r.asset=id;else{const p=pById(id),q=parseInt(fd.get('qty'))||0;if(!p)return 'Choose an item.';if(!(q>0))return 'Enter a quantity.';if(q>p.stock)return 'Only '+p.stock+' in stock.';r.asset='';r.part=id;r.qty=q}
+    S.repairs.push(r);commit();toast('Repair request created')},{submit:'Create request'});
+  const sync=()=>{$('#qtyBox',pf).style.display=($('#f_a',pf).value||'').slice(0,1)==='p'?'':'none'};$('#f_a',pf).addEventListener('change',sync);sync();
 }
 function repairAdvance(id){
-  const r=S.repairs.find(x=>x.id===id),a=aById(r.asset),i=R_FLOW.indexOf(r.status);if(i>=R_FLOW.length-1)return;
-  r.status=R_FLOW[i+1];
-  if(r.status==='At repairer'){r.sent=NOW();a.status='Under repair ('+r.type.toLowerCase()+')';a.loc=r.repairer+(r.country?', '+r.country:'')}
-  if(r.status==='Returned'){r.returned=NOW();a.status='In stores';a.machine='';a.loc='Electrical stores (returned from repair)';const p=pById(a.part);addStock(p,MAIN,1);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Repair return',qty:1,machine:'',ref:r.id,by:'Stores'})}
-  commit();toast('Repair moved to '+r.status);
+  const r=S.repairs.find(x=>x.id===id),it=rItem(r),a=it.a,p=it.p,i=R_FLOW.indexOf(r.status);if(i>=R_FLOW.length-1)return;
+  const next=R_FLOW[i+1];
+  if(next==='At repairer'){
+    if(!a&&p.stock<it.q){toast('Only '+p.stock+' of '+p.code+' in stock, cannot send '+it.q);return}
+    if(a){if(a.status==='In stores'&&p.stock>0){takeStock(p,1,MAIN);r.fromStock=true;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Sent for repair',qty:-1,machine:'',ref:r.id,by:'Stores'})}a.status='Under repair ('+r.type.toLowerCase()+')';a.loc=r.repairer+(r.country?', '+r.country:'')}
+    else{takeStock(p,it.q,MAIN);r.fromStock=true;S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Sent for repair',qty:-it.q,machine:'',ref:r.id,by:'Stores'})}
+    r.sent=NOW()}
+  if(next==='Returned'){r.returned=NOW();
+    if(a){a.status='In stores';a.machine='';a.loc='Electrical stores (returned from repair)'}
+    addStock(p,MAIN,it.q);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Repair return',qty:it.q,machine:'',ref:r.id,by:'Stores'})}
+  r.status=next;commit();toast('Repair moved to '+next);
 }
 
 
@@ -877,7 +893,7 @@ function vOverview(){
   </div>
   <div class="grid g-3">
     <div class="card"><div class="card-h"><h2>Spares to reorder</h2><button class="link" data-act="nav" data-id="purchasing">Purchasing →</button></div><div class="card-b row-list">${al.length?al.slice(0,6).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.stock} left, min ${p.min}${onOrder(p.id)?' · '+onOrder(p.id)+' on order':''}</div></div>${statusBadge(s.k,s.c)}</div>`}).join(''):'<div class="empty">Everything is above reorder level.</div>'}</div></div>
-    <div class="card"><div class="card-h"><h2>Open repairs</h2><button class="link" data-act="nav" data-id="repairs">Pipeline →</button></div><div class="card-b row-list">${rOpen.length?rOpen.map(r=>{const a=aById(r.asset),late=r.expected&&r.expected<NOW()&&r.status!=='Completed';return a?`<div class="item"><div class="grow"><div class="t">${esc((pById(a.part)||{}).name||'')}</div><div class="s mono">${esc(a.serial)} · ${esc(r.repairer)}</div></div>${late?statusBadge('Overdue','crit'):statusBadge(r.status,r.status==='Requested'?'':'info')}</div>`:''}).join(''):'<div class="empty">No assets out for repair.</div>'}</div></div>
+    <div class="card"><div class="card-h"><h2>Open repairs</h2><button class="link" data-act="nav" data-id="repairs">Pipeline →</button></div><div class="card-b row-list">${rOpen.length?rOpen.map(r=>{const it=rItem(r),a=it.p&&it,late=r.expected&&r.expected<NOW()&&r.status!=='Completed';return a?`<div class="item"><div class="grow"><div class="t">${esc((it.p||{}).name||'')}</div><div class="s mono">${esc(it.label)} · ${esc(r.repairer)}</div></div>${late?statusBadge('Overdue','crit'):statusBadge(r.status,r.status==='Requested'?'':'info')}</div>`:''}).join(''):'<div class="empty">No assets out for repair.</div>'}</div></div>
     <div class="card"><div class="card-h"><h2>Recent stops</h2><button class="link" data-act="nav" data-id="downtime">All downtime →</button></div><div class="card-b row-list">${S.events.slice().sort((a,b)=>evStart(b)-evStart(a)).slice(0,5).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.machine)} · ${esc(e.cause)}</div><div class="s">${fDT(evStart(e))}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')||'<div class="empty">No stops recorded.</div>'}</div></div>
   </div>`;
 }
@@ -1008,8 +1024,8 @@ function vAssets(){
 
 function vRepairs(){
   const cols=R_FLOW.map(st=>{const list=S.repairs.filter(r=>r.status===st).sort((a,b)=>(b.sent||b.returned||0)-(a.sent||a.returned||0));
-    return `<div class="col"><h3>${st==='Completed'?'Ready / in transit':st}<span>${list.length}</span></h3>${list.map(r=>{const a=aById(r.asset),p=pById(a.part),late=r.expected&&r.expected<NOW()&&st!=='Returned';
-      return `<div class="rc"><div class="t">${esc(p.name)}</div><div class="m mono"><span>${esc(a.serial)}</span>${r.ref?`<span>${esc(r.ref)}</span>`:''}</div><div>${statusBadge(r.type,r.type==='Abroad'?'info':'')} <span class="sub">${esc(r.repairer)}, ${esc(r.country)}</span></div><div class="sub">${esc(r.fault||'')}</div><div class="m"><span>${r.sent?'Sent '+fDate(r.sent):'Not sent yet'}</span>${r.expected&&st!=='Returned'?`<span class="${late?'up':''}">Due ${fDate(r.expected)}${late?' (overdue)':''}</span>`:''}${r.costLKR?`<span class="mono">${lkr(r.costLKR)}</span>`:''}</div>${st!=='Returned'?`<button class="btn sm" data-act="repairAdvance" data-id="${r.id}">${{Requested:'Mark sent',['At repairer']:'Repair done',Completed:'Received back in stores'}[st]}</button>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" data-act="editRepair" data-id="${r.id}">Edit</button><button class="btn sm ghost danger" data-act="deleteRepair" data-id="${r.id}">Delete</button></div></div>`}).join('')||'<div class="sub" style="padding:6px 4px">Nothing here.</div>'}</div>`}).join('');
+    return `<div class="col"><h3>${st==='Completed'?'Ready / in transit':st}<span>${list.length}</span></h3>${list.map(r=>{const it=rItem(r),p=it.p,late=r.expected&&r.expected<NOW()&&st!=='Returned';
+      return `<div class="rc"><div class="t">${esc(p.name)}</div><div class="m mono"><span>${esc(it.label)}</span>${r.ref?`<span>${esc(r.ref)}</span>`:''}</div><div>${statusBadge(r.type,r.type==='Abroad'?'info':'')} <span class="sub">${esc(r.repairer)}, ${esc(r.country)}</span></div><div class="sub">${esc(r.fault||'')}</div><div class="m"><span>${r.sent?'Sent '+fDate(r.sent):'Not sent yet'}</span>${r.expected&&st!=='Returned'?`<span class="${late?'up':''}">Due ${fDate(r.expected)}${late?' (overdue)':''}</span>`:''}${r.costLKR?`<span class="mono">${lkr(r.costLKR)}</span>`:''}</div>${st!=='Returned'?`<button class="btn sm" data-act="repairAdvance" data-id="${r.id}">${{Requested:'Mark sent',['At repairer']:'Repair done',Completed:'Received back in stores'}[st]}</button>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm ghost" data-act="editRepair" data-id="${r.id}">Edit</button><button class="btn sm ghost danger" data-act="deleteRepair" data-id="${r.id}">Delete</button></div></div>`}).join('')||'<div class="sub" style="padding:6px 4px">Nothing here.</div>'}</div>`}).join('');
   const spent=S.repairs.reduce((a,r)=>a+(r.costLKR||0),0);
   return `<div class="grid g-kpi"><div style="display:contents">${kpi('Open repairs',S.repairs.filter(r=>r.status!=='Returned').length,'','')}${kpi('Overseas',S.repairs.filter(r=>r.type==='Abroad'&&r.status!=='Returned').length,'','')}${kpi('Overdue',S.repairs.filter(r=>r.expected&&r.expected<NOW()&&r.status!=='Returned').length,'','',S.repairs.some(r=>r.expected&&r.expected<NOW()&&r.status!=='Returned')?'bad':'good')}${kpi('Repair spend',lkrK(spent),'','all requests')}</div></div><div class="kan">${cols}</div>`;
 }
@@ -1038,6 +1054,7 @@ function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=st
   <div class="sec"><div style="display:flex;align-items:baseline;gap:8px"><span class="kpi"><span class="v num" style="font-size:46px">${p.stock}</span></span><span class="sub">in stock · min ${p.min} · reorder ${p.reorder} · max ${p.max}</span></div>${gauge(p,true)}
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockTransfer" data-id="${id}">Move</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm ghost" data-act="editPart" data-id="${id}">Edit part</button><button class="btn sm ghost danger" data-act="deletePart" data-id="${id}">Delete part</button></div></div>
   <div class="sec"><h4>Stock by location</h4>${locKeys().map(k=>{const q=p.byLine[k]||0,mx=Math.max(p.stock,1);return `<div class="locbar"><span class="n">${esc(locName(k))}</span><div class="gauge"><div class="f" style="width:${q/mx*100}%;background:var(--accent)"></div></div><span class="num" style="min-width:28px;text-align:right;font-weight:600">${q}</span></div>`}).join('')}</div>
+  <div class="sec"><h4>Installed on lines</h4>${S.lines.map(l=>{const f=fittedOn(p,l.id),mx=Math.max(fittedTotal(p),1);return `<div class="locbar"><span class="n">${esc(l.name)}</span><div class="gauge"><div class="f" style="width:${f.n/mx*100}%;background:var(--c2)"></div></div><span class="num" style="min-width:28px;text-align:right;font-weight:600">${f.n}</span></div>`}).join('')}<div class="sub">${fittedTotal(p)} running in total${S.assets.some(a=>a.part===p.id&&a.status==='Active on line')?', including serial-numbered units fitted to machines':''}. Change the numbers with Edit part.</div></div>
   <div class="sec"><h4>Details</h4><div class="facts"><div><span>Brand</span><b>${esc(p.brand)}</b></div><div><span>Category</span><b>${esc(p.cat)}</b></div><div><span>Location</span><b>${esc(p.loc)}</b></div><div><span>Unit value</span><b class="num">${lkr(p.cost)}</b></div><div><span>Supplier</span><b>${esc(p.supplier)}</b></div><div><span>Lead time</span><b class="num">${p.lead} days</b></div></div></div>
   ${pos.length?`<div class="sec"><h4>On order</h4>${pos.map(o=>`<div class="item"><div class="grow"><div class="t mono">${esc(o.id)}</div><div class="s">${o.qty-o.recv} due ${o.eta?fDate(o.eta):''}</div></div>${statusBadge(o.status,'info')}</div>`).join('')}</div>`:''}
   <div class="sec"><h4>Fits ${p.compat.length} machines</h4><div style="display:flex;gap:6px;flex-wrap:wrap">${p.compat.map(c=>`<button class="chip plain" style="border:0;cursor:pointer" data-act="openMachine" data-id="${esc(c)}">${esc(c)}</button>`).join('')||'<span class="sub">None linked</span>'}</div></div>
@@ -1095,13 +1112,13 @@ function tables(){
   const mn=id=>{const m=mById(id);return m?m.name:''},ln=id=>{const m=mById(id);return m?lById(m.line).name:''};
   const pc=id=>{const p=pById(id);return p?p.code:''},pn=id=>{const p=pById(id);return p?p.name:''};
   return {
-   'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k)))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)))),
+   'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k))).concat(S.lines.map(l=>'Installed on '+l.name))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)).concat(S.lines.map(l=>fittedOn(p,l.id).n)))),
    'Machines':[['Code','Name','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
    'Monthly summary':[['Month','Stops','Unplanned hours','Planned hours','Average repair (min)','Availability %','Spares issued (LKR)','Purchases (LKR)','Repair spend (LKR)']].concat((function(){const out=[],now=new Date(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date));let d=new Date(new Date(t0).getFullYear(),new Date(t0).getMonth(),1);for(;d<=now;d=new Date(d.getFullYear(),d.getMonth()+1,1)){const b=bucketStats(d.getTime(),new Date(d.getFullYear(),d.getMonth()+1,1).getTime());out.push([d.getFullYear()+'-'+p2(d.getMonth()+1),b.n,+(b.un/60).toFixed(1),+(b.pl/60).toFixed(1),Math.round(b.mttr),b.avail==null?'':+(b.avail*100).toFixed(2),Math.round(b.issued),Math.round(b.bought),Math.round(b.rep)])}return out})()),
    'Assets':[['Serial','Stores code','Part','Status','Fitted to','Location','Installed','Warranty until']].concat(S.assets.map(a=>[a.serial,pc(a.part),pn(a.part),a.status,a.machine||'',a.loc||'',a.installed?fFull(a.installed).slice(0,10):'',a.warranty?fFull(a.warranty).slice(0,10):''])),
-   'Repairs':[['Repair ID','Serial','Part','Where','Repairer','Country','Status','Sent','Expected back','Cost (LKR)','Reference','Fault']].concat(S.repairs.map(r=>{const a=aById(r.asset)||{};return [r.id,a.serial||'',a.part?pn(a.part):'',r.type,r.repairer,r.country||'',r.status,r.sent?fFull(r.sent).slice(0,10):'',r.expected?fFull(r.expected).slice(0,10):'',r.costLKR||0,r.ref||'',r.fault||'']})),
+   'Repairs':[['Repair ID','Serial','Part','Where','Repairer','Country','Status','Sent','Expected back','Cost (LKR)','Reference','Fault']].concat(S.repairs.map(r=>{const it=rItem(r),a=it.a||{};return [r.id,a.serial||it.label,it.p?pn(it.p.id):'',r.type,r.repairer,r.country||'',r.status,r.sent?fFull(r.sent).slice(0,10):'',r.expected?fFull(r.expected).slice(0,10):'',r.costLKR||0,r.ref||'',r.fault||'']})),
    'Purchase orders':[['PO','Stores code','Part','Supplier','Ordered','Received','Unit cost (LKR)','Total (LKR)','Order date','Expected','Status']].concat(S.pos.map(o=>[o.id,pc(o.part),pn(o.part),o.supplier,o.qty,o.recv,o.unit,o.qty*o.unit,fFull(o.date).slice(0,10),o.eta?fFull(o.eta).slice(0,10):'',o.status]))};
 }
 function saveBlob(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
