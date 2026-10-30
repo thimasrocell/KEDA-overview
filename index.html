@@ -961,7 +961,8 @@ function vDowntime(){
     ${periodPicker('dt')}
     <select data-f="dtLine" aria-label="Line"><option value="">All lines</option>${opts(S.lines.map(l=>[l.id,l.name]),ui.dtLine)}</select>
     <select data-f="dtType" aria-label="Type"><option value="">Planned and unplanned</option>${opts(['Unplanned','Planned'],ui.dtType)}</select>
-    <input type="search" data-f="dtQ" placeholder="Search machine, cause, technician" value="${esc(ui.dtQ)}" aria-label="Search"></div>
+    <input type="search" data-f="dtQ" placeholder="Search machine, cause, technician" value="${esc(ui.dtQ)}" aria-label="Search">
+    <button class="btn danger" data-act="clearDowntime" title="Deletes every record matching the period and filters above">Delete these records</button></div>
     <div id="results">${dtResults()}</div>`;
 }
 
@@ -1218,6 +1219,7 @@ const ACT={
  cfgSave:()=>{cfg.url=$('#c_url').value.trim().replace(/\/+$/,'');cfg.key=$('#c_key').value.trim();cfg.row=($('#c_row').value.trim()||'main');cfg.auto=$('#c_auto').value==='1';cfg.sheetsUrl=$('#c_sheets').value.trim();saveCfg();sync.conflict=false;
    if(!/^https:\/\/.+/.test(cfg.url)||!cfg.key){toast('Enter the project URL and anon key');return}doSync(true);render()},
  cfgClear:()=>{cfg.url='';cfg.key='';saveCfg();sync={state:'off',msg:'',conflict:false};updateStatus();render();toast('Disconnected. Data stays in this browser.')},
+ clearDowntime:()=>{const evs=dtFiltered();if(!evs.length){toast('No downtime records in this view');return}const all=evs.length===S.events.length;confirmBox('Delete '+evs.length+' downtime record'+(evs.length>1?'s':'')+'?','This removes '+(all?'<b>all</b> downtime records':'the '+evs.length+' records shown (current period and filters)')+'. Spare-part stock is not changed. You can undo this straight afterwards.','Delete '+evs.length,()=>{const ids=new Set(evs.map(e=>e.id));S.events=S.events.filter(e=>!ids.has(e.id));S.txns.forEach(t=>{if(ids.has(t.ref))t.ref=''});S.repairs.forEach(r=>{if(ids.has(r.event))r.event=''});commit();toast('Deleted '+evs.length+' downtime records')})},
  resetData:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Click again to reset';setTimeout(()=>{b.dataset.armed='';b.textContent='Reset sample data'},3000);return}const rv=S.rev;S=seed();S.rev=rv;closeDrawer();commit();toast('Sample data restored')}
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;if(b.tagName==='TR'&&e.target.closest('button,a,select'))return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b)}});
