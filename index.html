@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body><title>Line Watch</title>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body><title>Squaring Section</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -33,6 +33,7 @@ h1,h2,h3{margin:0;font-family:var(--f-display);font-weight:600;letter-spacing:.0
 .rail{background:var(--rail);color:var(--rail-ink);padding:20px 12px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh;align-self:start}
 .brand{display:flex;align-items:center;gap:10px;padding:0 8px}
 .brand svg{flex:none}
+.brand img{height:36px;max-width:120px;object-fit:contain;flex:none;background:#fff;border-radius:6px;padding:3px}
 .brand b{font:700 24px/1 var(--f-display);letter-spacing:.04em;text-transform:uppercase;color:#fff;display:block}
 .brand span{font-size:11px;color:var(--rail-dim);letter-spacing:.06em;text-transform:uppercase}
 .nav{display:flex;flex-direction:column;gap:2px}
@@ -241,8 +242,8 @@ td.r,th.r{text-align:right}
 <div class="app">
   <aside class="rail">
     <div class="brand">
-      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2.5" fill="#6C93FF"/><rect x="19" y="1" width="14" height="14" rx="2.5" fill="#2B3E52"/><rect x="1" y="19" width="14" height="14" rx="2.5" fill="#2B3E52"/><rect x="19" y="19" width="14" height="14" rx="2.5" fill="#D1352B"/></svg>
-      <div><b>Line Watch</b><span>Spares &amp; downtime</span></div>
+      <span id="brandMark" style="display:contents"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="2.5" fill="#6C93FF"/><rect x="19" y="1" width="14" height="14" rx="2.5" fill="#2B3E52"/><rect x="1" y="19" width="14" height="14" rx="2.5" fill="#2B3E52"/><rect x="19" y="19" width="14" height="14" rx="2.5" fill="#D1352B"/></svg></span>
+      <div><b id="brandName">Squaring Section</b><span>Spares &amp; downtime</span></div>
     </div>
     <nav class="nav" id="nav" aria-label="Main"></nav>
     <div class="rail-foot"><span id="saveState">Saved in this browser only</span><button data-act="resetData">Reset sample data</button></div>
@@ -254,7 +255,7 @@ td.r,th.r{text-align:right}
 <div class="toast" id="toast" hidden></div>
 
 <script>
-window.addEventListener('error',function(ev){var m=document.getElementById('main');if(m&&!m.children.length)m.innerHTML='<div style="padding:24px;font:14px sans-serif;color:#b00"><b>Line Watch could not start.</b><br>'+String(ev.message).replace(/</g,'&lt;')+'</div>'});
+window.addEventListener('error',function(ev){var m=document.getElementById('main');if(m&&!m.children.length)m.innerHTML='<div style="padding:24px;font:14px sans-serif;color:#b00"><b>Squaring Section could not start.</b><br>'+String(ev.message).replace(/</g,'&lt;')+'</div>'});
 (function(){
 'use strict';
 /* ---------- helpers ---------- */
@@ -397,6 +398,9 @@ const locName=k=>k===MAIN?'Main stores':((lById(k)||{}).name||k);
 const locShort=k=>k===MAIN?'Main':((lById(k)||{}).code||k);
 const locKeys=()=>[MAIN].concat(S.lines.map(l=>l.id));
 const locSel=sel=>locKeys().map(k=>`<option value="${k}"${k===sel?' selected':''}>${esc(locName(k))}</option>`).join('');
+function applyBrand(){const m=document.getElementById('brandMark');if(!m)return;if(!m.dataset.def)m.dataset.def=m.innerHTML;m.innerHTML=S.brand&&S.brand.logo?'<img alt="Logo" src="'+S.brand.logo+'">':m.dataset.def}
+function setLogo(file){if(!file)return;if(!/^image\//.test(file.type)){toast('Choose an image file (PNG, JPG, SVG)');return}
+  const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.brand={logo:c.toDataURL('image/png')};commit();applyBrand();toast('Logo updated')};im.onerror=()=>toast('Could not read that image');im.src=fr.result};fr.readAsDataURL(file)}
 function stockTotal(p){return Object.keys(p.byLine||{}).reduce((a,k)=>a+(+p.byLine[k]||0),0)}
 function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
   Object.keys(p.byLine).forEach(k=>{if(k!==MAIN&&!lById(k)){p.byLine[MAIN]=(p.byLine[MAIN]||0)+p.byLine[k];delete p.byLine[k];ch=true}});
@@ -1159,6 +1163,13 @@ function vSettings(){
     <p class="sub" style="color:var(--muted);font-size:12.5px;margin-bottom:0">Anyone who has both your URL and anon key can read and edit this data. Keep them private. Connecting for the first time uploads what you see now, or loads what is already in the cloud.</p>
   </div></div>
   <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card"><div class="card-h"><h2>Logo</h2></div><div class="card-b">
+      <p style="margin-top:0;color:var(--muted)">Upload your company logo (PNG, JPG or SVG). It shows at the top left and is saved with your data, so it syncs to every device.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${S.brand&&S.brand.logo?`<img alt="Current logo" src="${S.brand.logo}" style="height:40px;max-width:140px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff">`:''}
+      <input type="file" id="logoFile" accept="image/*" aria-label="Logo file">${S.brand&&S.brand.logo?'<button class="btn sm" data-act="removeLogo">Remove logo</button>':''}</div></div></div>
+    <div class="card"><div class="card-h"><h2>Start fresh</h2></div><div class="card-b">
+      <p style="margin-top:0;color:var(--muted)">Remove the sample downtime, stock movements, purchase orders, repairs and assets in one step. Lines, machines and spare parts stay.</p>
+      <button class="btn danger" data-act="clearSample">Clear all sample records</button></div></div>
     <div class="card"><div class="card-h"><h2>Download</h2></div><div class="card-b">
       <p style="margin-top:0;color:var(--muted)">One Excel file with ${Object.keys(T).length} sheets (parts, machines, downtime, stock movements, assets, repairs, purchase orders). Import it in Google Sheets with File &rarr; Import &rarr; Upload.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn primary" data-act="exportXlsx">Download Excel file</button>
@@ -1180,7 +1191,7 @@ function renderNav(){
   const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
-function render(){
+function render(){applyBrand();
   renderNav();
   const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
   const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newLine">${ic('plus')} Add line</button><button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,assets:`<button class="btn" data-act="newAsset">${ic('plus')} Add asset</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
@@ -1219,6 +1230,8 @@ const ACT={
  cfgSave:()=>{cfg.url=$('#c_url').value.trim().replace(/\/+$/,'');cfg.key=$('#c_key').value.trim();cfg.row=($('#c_row').value.trim()||'main');cfg.auto=$('#c_auto').value==='1';cfg.sheetsUrl=$('#c_sheets').value.trim();saveCfg();sync.conflict=false;
    if(!/^https:\/\/.+/.test(cfg.url)||!cfg.key){toast('Enter the project URL and anon key');return}doSync(true);render()},
  cfgClear:()=>{cfg.url='';cfg.key='';saveCfg();sync={state:'off',msg:'',conflict:false};updateStatus();render();toast('Disconnected. Data stays in this browser.')},
+ removeLogo:()=>{S.brand=null;commit();applyBrand();toast('Logo removed')},
+ clearSample:()=>confirmBox('Clear all sample records?','This deletes <b>all downtime records, stock movements, purchase orders, repairs and assets</b>. Your production lines, machines and spare parts (with their current stock counts) are kept. You can undo this straight afterwards.','Clear records',()=>{S.events=[];S.txns=[];S.pos=[];S.repairs=[];S.assets=[];commit();toast('Sample records cleared. Lines, machines and parts kept.')}),
  clearDowntime:()=>{const evs=dtFiltered();if(!evs.length){toast('No downtime records in this view');return}const all=evs.length===S.events.length;confirmBox('Delete '+evs.length+' downtime record'+(evs.length>1?'s':'')+'?','This removes '+(all?'<b>all</b> downtime records':'the '+evs.length+' records shown (current period and filters)')+'. Spare-part stock is not changed. You can undo this straight afterwards.','Delete '+evs.length,()=>{const ids=new Set(evs.map(e=>e.id));S.events=S.events.filter(e=>!ids.has(e.id));S.txns.forEach(t=>{if(ids.has(t.ref))t.ref=''});S.repairs.forEach(r=>{if(ids.has(r.event))r.event=''});commit();toast('Deleted '+evs.length+' downtime records')})},
  resetData:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Click again to reset';setTimeout(()=>{b.dataset.armed='';b.textContent='Reset sample data'},3000);return}const rv=S.rev;S=seed();S.rev=rv;closeDrawer();commit();toast('Sample data restored')}
 };
@@ -1229,12 +1242,12 @@ document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey|
 function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';if(pm[1]==='dt')ui.dtLimit=0;render();return}const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
-document.addEventListener('change',e=>{if(e.target.type==='search')return;onFilter(e)});
+document.addEventListener('change',e=>{if(e.target.id==='logoFile'){setLogo(e.target.files[0]);return}if(e.target.type==='search')return;onFilter(e)});
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
 if(migrate()){S.dirty=true;lastSnap=snap();save()}
-render();
+render();applyBrand();
 updateStatus();
 if(sbOn())doSync(false);
 })();

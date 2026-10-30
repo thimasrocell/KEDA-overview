@@ -1,4 +1,4 @@
-# Line Watch
+# Squaring Section
 
 Spare parts and downtime monitoring for a three-line tile factory. Single-file app (`index.html`), no build step.
 
@@ -28,3 +28,10 @@ Use the same workspace name on every device that should share data. If two devic
 
 - **Download Excel file**, then in Google Sheets use File, Import, Upload.
 - **Send to Google Sheets** pushes every table into a sheet you own, through a small Apps Script that the app shows and lets you copy.
+
+## Recent additions
+
+- Machine codes are assigned from the line code and rank (SL-01, K2-01). Use the ▲/▼ buttons on the Machines page to reorder; codes renumber everywhere.
+- Spare part quantities are kept per location (Main stores plus each line). Use Move to transfer between locations.
+- The Downtime page has the same period controls as the Overview (this month, last month, month and year pickers, all time) and a button to delete the records in the current view.
+- Data & sync: upload your company logo, or clear all sample records in one step (lines, machines and parts are kept).
