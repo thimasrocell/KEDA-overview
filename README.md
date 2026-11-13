@@ -37,3 +37,13 @@ Use the same workspace name on every device that should share data. If two devic
 - Data & sync: upload your company logo, or clear all sample records in one step (lines, machines and parts are kept).
 - Parts can have serial numbers for some units and not others. Repairs can be raised for a serial-numbered unit or for plain stock quantity, and stock follows the item out and back.
 - Each part records how many units are currently installed on each line (serial-numbered units fitted to machines are counted automatically).
+
+## Deploy on Vercel
+
+This is a single static page with no build step, so it deploys as is.
+
+1. Sign in at vercel.com with GitHub and choose **Add New → Project**.
+2. Import `KEDA-overview`. Leave Framework Preset as **Other**, leave Build Command and Output Directory empty (`vercel.json` already sets this), then **Deploy**.
+3. Open the URL Vercel gives you, go to **Data & sync**, and enter your Supabase URL and anon key. They are stored in each browser, not in the code, so enter them once on every device or browser you use.
+
+Every push to `main` redeploys automatically. The app works the same on GitHub Pages and Vercel, since all data lives in Supabase and the browser.
