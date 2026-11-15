@@ -2,3 +2,8 @@
 // your Supabase project automatically. In the app, open Data & sync and use
 // "Copy config.js" to get the exact text to paste here.
 // window.SQUARING_CONFIG = { "url": "https://xxxx.supabase.co", "key": "your-anon-key", "row": "main" };
+window.SQUARING_CONFIG = {
+  "url": "https://qevgujynqfnvlvowzkoj.supabase.co",
+  "key": "sb_publishable_Qd6kyD-Y6uDK2vig5nMkQA_-BgTiiwW",
+  "row": "main"
+};
