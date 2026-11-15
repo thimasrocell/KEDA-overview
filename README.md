@@ -46,4 +46,9 @@ This is a single static page with no build step, so it deploys as is.
 2. Import `KEDA-overview`. Leave Framework Preset as **Other**, leave Build Command and Output Directory empty (`vercel.json` already sets this), then **Deploy**.
 3. Open the URL Vercel gives you, go to **Data & sync**, and enter your Supabase URL and anon key. They are stored in each browser, not in the code, so enter them once on every device or browser you use.
 
+To avoid entering the keys on every device or browser, use either of these (after connecting once, both are on the **Data & sync** page):
+
+- **Copy setup link**: open that link once in any browser and it connects by itself.
+- **Copy config.js**: paste the text into `config.js` in this repo and commit it. Every visitor then connects automatically. Only do this if the repo is private or you are happy for anyone who can see it to be able to edit your data.
+
 Every push to `main` redeploys automatically. The app works the same on GitHub Pages and Vercel, since all data lives in Supabase and the browser.

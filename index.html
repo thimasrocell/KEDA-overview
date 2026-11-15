@@ -254,6 +254,7 @@ td.r,th.r{text-align:right}
 <div class="layer" id="modalLayer"></div>
 <div class="toast" id="toast" hidden></div>
 
+<script src="config.js"></script>
 <script>
 window.addEventListener('error',function(ev){var m=document.getElementById('main');if(m&&!m.children.length)m.innerHTML='<div style="padding:24px;font:14px sans-serif;color:#b00"><b>Squaring Section could not start.</b><br>'+String(ev.message).replace(/</g,'&lt;')+'</div>'});
 (function(){
@@ -402,7 +403,7 @@ function applyBrand(){const m=document.getElementById('brandMark');if(!m)return;
 function setLogo(file){if(!file)return;if(!/^image\//.test(file.type)){toast('Choose an image file (PNG, JPG, SVG)');return}
   const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));c.getContext('2d').drawImage(im,0,0,c.width,c.height);S.brand={logo:c.toDataURL('image/png')};commit();applyBrand();toast('Logo updated')};im.onerror=()=>toast('Could not read that image');im.src=fr.result};fr.readAsDataURL(file)}
 function stockTotal(p){return Object.keys(p.byLine||{}).reduce((a,k)=>a+(+p.byLine[k]||0),0)}
-function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.fitted){p.fitted={};ch=true}Object.keys(p.fitted).forEach(k=>{if(!lById(k)){delete p.fitted[k];ch=true}});if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
+function ensureStock(){let ch=false;S.parts.forEach(p=>{if(!p.fitted)p.fitted={};Object.keys(p.fitted).forEach(k=>{if(!lById(k)){delete p.fitted[k];ch=true}});if(!p.byLine){p.byLine={};p.byLine[MAIN]=p.stock||0;ch=true}
   Object.keys(p.byLine).forEach(k=>{if(k!==MAIN&&!lById(k)){p.byLine[MAIN]=(p.byLine[MAIN]||0)+p.byLine[k];delete p.byLine[k];ch=true}});
   const t=stockTotal(p);if(t!==p.stock){p.stock=t;ch=true}});return ch}
 function fittedOn(p,l){const a=S.assets.filter(x=>x.part===p.id&&x.status==='Active on line'&&(mById(x.machine)||{}).line===l).length;return {n:((p.fitted||{})[l]||0)+a,ser:a}}
@@ -1065,7 +1066,15 @@ function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=st
 /* ---------- cloud sync (Supabase REST) ---------- */
 const CFG_KEY='linewatch-cfg';
 const CFG0={url:'',key:'',row:'main',auto:true,sheetsUrl:'',sheetsToken:''};
-let cfg=(function(){try{return Object.assign({},CFG0,JSON.parse(localStorage.getItem(CFG_KEY)||'{}'))}catch(e){return Object.assign({},CFG0)}})();
+let setupApplied=false;
+(function(){try{const m=/[#&]setup=([^&]+)/.exec(location.hash||'');if(!m)return;const o=JSON.parse(atob(decodeURIComponent(m[1])));
+  if(o&&/^https:\/\/.+/.test(o.url||'')&&o.key){let st={};try{st=JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}catch(e){}
+    localStorage.setItem(CFG_KEY,JSON.stringify(Object.assign(st,{url:o.url,key:o.key,row:o.row||'main'})));setupApplied=true}
+  history.replaceState(null,'',location.pathname+location.search)}catch(e){}})();
+const DEFCFG=(function(){try{const d=window.SQUARING_CONFIG||{};return {url:String(d.url||''),key:String(d.key||''),row:String(d.row||'main')}}catch(e){return {}}})();
+let cfg=(function(){try{return Object.assign({},CFG0,DEFCFG,JSON.parse(localStorage.getItem(CFG_KEY)||'{}'))}catch(e){return Object.assign({},CFG0,DEFCFG)}})();
+const setupLink=()=>location.href.split('#')[0]+'#setup='+encodeURIComponent(btoa(JSON.stringify({url:cfg.url,key:cfg.key,row:cfg.row})));
+const configJs=()=>'window.SQUARING_CONFIG = '+JSON.stringify({url:cfg.url,key:cfg.key,row:cfg.row},null,2)+';\n';
 if(!cfg.sheetsToken)cfg.sheetsToken=Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6);
 function saveCfg(){try{localStorage.setItem(CFG_KEY,JSON.stringify(cfg))}catch(e){}}
 const sbOn=()=>!!(cfg.url&&cfg.key);
@@ -1123,12 +1132,12 @@ function tables(){
 }
 function saveBlob(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
 const csvCell=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-function exportCsv(name){const rows=tables()[name];if(!rows)return;saveBlob('line-watch-'+name.toLowerCase().replace(/\s+/g,'-')+'.csv',new Blob(['﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv'}));toast(name+' downloaded')}
+function exportCsv(name){const rows=tables()[name];if(!rows)return;saveBlob('squaring-section-'+name.toLowerCase().replace(/\s+/g,'-')+'.csv',new Blob(['﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv'}));toast(name+' downloaded')}
 function loadScript(src){return new Promise((res,rej)=>{if(window.XLSX)return res();const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load'));document.head.appendChild(s)})}
 async function exportXlsx(){
   try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     const wb=XLSX.utils.book_new(),T=tables();Object.keys(T).forEach(n=>{const ws=XLSX.utils.aoa_to_sheet(T[n]);ws['!cols']=T[n][0].map((h,i)=>({wch:Math.min(40,Math.max(String(h).length,...T[n].slice(1,40).map(r=>String(r[i]==null?'':r[i]).length))+2)}));XLSX.utils.book_append_sheet(wb,ws,n)});
-    XLSX.writeFile(wb,'line-watch-'+dayKey(NOW())+'.xlsx');toast('Excel file downloaded. In Google Sheets use File > Import.')}
+    XLSX.writeFile(wb,'squaring-section-'+dayKey(NOW())+'.xlsx');toast('Excel file downloaded. In Google Sheets use File > Import.')}
   catch(e){toast('Could not load the Excel library. Download CSV files instead.')}}
 async function pushSheets(){
   if(!cfg.sheetsUrl)return toast('Add your Apps Script web app URL first');
@@ -1177,6 +1186,9 @@ function vSettings(){
       <div class="field"><label for="c_auto">Auto sync</label><select id="c_auto"><option value="1"${cfg.auto?' selected':''}>On, after every change</option><option value="0"${cfg.auto?'':' selected'}>Off, sync by hand</option></select></div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="cfgSave">Save and connect</button><button class="btn" data-act="syncNow"${sbOn()?'':' disabled'}>Sync now</button><button class="btn danger" data-act="cfgClear"${sbOn()?'':' disabled'}>Disconnect</button></div>
+    ${sbOn()?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><b>Stop typing these on every device</b>
+      <p class="sub" style="color:var(--muted);font-size:12.5px">Open the setup link once in any browser and it connects automatically. For a Vercel or GitHub Pages site that should connect for everyone, save the settings in a <span class="mono">config.js</span> file in the repo instead. Treat both like a password: anyone with the key can read and edit this data.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="copySetupLink">Copy setup link</button><button class="btn" data-act="copyConfigJs">Copy config.js</button></div></div>`:''}
     <p class="sub" style="color:var(--muted);font-size:12.5px;margin-bottom:0">Anyone who has both your URL and anon key can read and edit this data. Keep them private. Connecting for the first time uploads what you see now, or loads what is already in the cloud.</p>
   </div></div>
   <div style="display:flex;flex-direction:column;gap:14px">
@@ -1239,6 +1251,7 @@ const ACT={
  poAdvance:b=>{const o=S.pos.find(x=>x.id===b.dataset.id);o.status=PO_FLOW[PO_FLOW.indexOf(o.status)+1];commit();toast(o.id+' is now '+o.status)},
  repairAdvance:b=>repairAdvance(b.dataset.id),
  addPartRow:b=>{const w=$('#prows');const d=document.createElement('div');d.className='prow';d.innerHTML=`<select name="pu_part"><option value="">Select part…</option>${partOpts()}</select><input type="number" name="pu_qty" min="1" value="1" aria-label="Quantity">`;w.appendChild(d)},
+ copySetupLink:()=>copyText(setupLink()),copyConfigJs:()=>copyText(configJs()),
  copySql:()=>copyText(SQL),copyScript:()=>copyText(script()),
  exportXlsx,exportCsv:()=>exportCsv($('#csvSel').value),
  sheetsSend:()=>{cfg.sheetsUrl=$('#c_sheets').value.trim();saveCfg();pushSheets()},
@@ -1266,6 +1279,7 @@ const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
 if(migrate()){S.dirty=true;lastSnap=snap();save()}
 render();applyBrand();
 updateStatus();
+if(setupApplied)toast('Connected with your setup link');
 if(sbOn())doSync(false);
 })();
 </script>
