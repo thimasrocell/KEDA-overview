@@ -1100,7 +1100,7 @@ async function doSync(manual){
   try{
     const c=await pullCloud(),rev=S.rev||0;
     if(!c){const doc=Object.assign({},S,{rev:1,dirty:false});await sb('linewatch_state',{method:'POST',headers:{Prefer:'return=minimal'},body:{id:cfg.row,rev:1,data:doc}});S.rev=1;S.dirty=edits!==e0;save()}
-    else if(c.rev>rev||c.rev<rev){if(S.dirty||c.rev<rev){sync.conflict=true;setSync('err','Cloud differs from this browser');render();return}adopt(c)}
+    else if(c.rev>rev||c.rev<rev){if(!rev&&!manual){try{localStorage.setItem('linewatch-v1-local-backup',JSON.stringify(S))}catch(e){}adopt(c);toast('Loaded the data saved in the cloud');setSync('ok','Synced '+hhmm());return}if(S.dirty||c.rev<rev){sync.conflict=true;setSync('err','Cloud differs from this browser');render();return}adopt(c)}
     else if(S.dirty||manual){const next=rev+1,doc=Object.assign({},S,{rev:next,dirty:false});
       const res=await sb('linewatch_state?id=eq.'+encodeURIComponent(cfg.row)+'&rev=eq.'+rev,{method:'PATCH',headers:{Prefer:'return=representation'},body:{rev:next,data:doc,updated_at:new Date().toISOString()}});
       if(!res||!res.length){sync.conflict=true;setSync('err','Cloud differs from this browser');render();return}
@@ -1276,7 +1276,7 @@ document.addEventListener('change',e=>{if(e.target.id==='logoFile'){setLogo(e.ta
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
-if(migrate()){S.dirty=true;lastSnap=snap();save()}
+if(migrate()){lastSnap=snap();save()}
 render();applyBrand();
 updateStatus();
 if(setupApplied)toast('Connected with your setup link');
