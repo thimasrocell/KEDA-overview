@@ -214,6 +214,7 @@ td.r,th.r{text-align:right}
 .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:4px 10px}
 .field .chk{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink);font-weight:400}
 @media (max-width:900px){.btn .lbl{display:none}}
+[hidden]{display:none!important}
 .locgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
 .locbar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .locbar .n{min-width:110px}
@@ -513,6 +514,7 @@ function logDowntime(mid,resolveId){
     <div class="field"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(NOW()-30*MIN)}" required></div>
     <div class="field"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down (machine not running yet)</option><option value="done">Back up (fault fixed, machine running)</option></select></div>
     <div class="field" id="endWrap" hidden><label for="f_end">Back up at</label><input id="f_end" type="datetime-local" name="end" value="${toLocalInput(NOW())}"></div>
+    <div class="field" id="durWrap" hidden><label for="f_dur">Or total minutes stopped</label><input id="f_dur" type="number" name="dur" min="1" placeholder="e.g. 40"><span class="hint">Use this for old data. Set "Stopped at" to when the stop (or shift) began; the back-up time is worked out for you and replaces the box on the left.</span></div>
     <div class="field"><label for="f_tech">Technician</label><input id="f_tech" name="tech" placeholder="e.g. S. Fernando"></div>
     <div class="field full"><label for="f_desc">What happened</label><textarea id="f_desc" name="desc" placeholder="Symptoms, what was checked, what was changed"></textarea></div>
     <div class="field full"><label for="f_block">Waiting for a spare part?</label><select id="f_block" name="blocked"><option value="">No</option>${S.parts.map(p=>`<option value="${p.id}">${esc(p.name+' · '+p.code+' ('+p.stock+' in stock)')}</option>`).join('')}</select></div>${partRows()}`;
@@ -523,7 +525,7 @@ function logDowntime(mid,resolveId){
       ev.end=new Date(end).toISOString();ev.tech=tech;ev.desc=desc;ev.parts=(ev.parts||[]).concat(used);delete ev.blocked;
       const w=applyParts(used,ev.machine,ev.id,tech||'Maintenance',end);commit();toast('Resolved after '+fDur(evMin(ev))+(w.length?' · stock short for '+w.join(', '):''));return}
     const start=Date.parse(fd.get('start'));if(!start)return 'Enter when the machine stopped.';
-    const done=fd.get('state')==='done';const end=done?Date.parse(fd.get('end')):null;
+    const done=fd.get('state')==='done',dm=parseInt(fd.get('dur'))||0;const end=done?(dm>0?start+dm*MIN:Date.parse(fd.get('end'))):null;
     if(done&&!(end>start))return 'Back-up time must be after the stop time.';if(done&&end>NOW()+MIN)return 'Back-up time cannot be in the future.';
     if(!done&&openEv(fd.get('machine')))return 'This machine already has an open downtime. Resolve it first.';
     if(start>NOW()+MIN)return 'Stop time cannot be in the future.';
@@ -535,7 +537,7 @@ function logDowntime(mid,resolveId){
   if(!ev){
     const type=$('[data-cause]',f),cause=$('#f_cause',f),st=$('[data-state]',f);
     type.addEventListener('change',()=>{const l=type.value==='Planned'?PLANNED:UNPLANNED;$('#causeList',f).innerHTML=l.map(c=>`<option value="${c}">`).join('');cause.value=l[0]});
-    st.addEventListener('change',()=>{$('#endWrap',f).hidden=st.value!=='done'});
+    st.addEventListener('change',()=>{$('#endWrap',f).hidden=st.value!=='done';$('#durWrap',f).hidden=st.value!=='done'});
   }
 }
 
