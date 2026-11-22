@@ -511,7 +511,7 @@ function logDowntime(mid,resolveId){
     <div class="field"><label for="f_type">Type</label><select id="f_type" name="type" data-cause>${opts(['Unplanned','Planned'])}</select></div>
     <div class="field"><label for="f_cause">Cause</label><input id="f_cause" name="cause" list="causeList" value="${UNPLANNED[0]}" required><datalist id="causeList">${UNPLANNED.map(c=>`<option value="${c}">`).join('')}</datalist></div>
     <div class="field"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(NOW()-30*MIN)}" required></div>
-    <div class="field"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down</option><option value="done">Already back up</option></select></div>
+    <div class="field"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down (machine not running yet)</option><option value="done">Back up (fault fixed, machine running)</option></select></div>
     <div class="field" id="endWrap" hidden><label for="f_end">Back up at</label><input id="f_end" type="datetime-local" name="end" value="${toLocalInput(NOW())}"></div>
     <div class="field"><label for="f_tech">Technician</label><input id="f_tech" name="tech" placeholder="e.g. S. Fernando"></div>
     <div class="field full"><label for="f_desc">What happened</label><textarea id="f_desc" name="desc" placeholder="Symptoms, what was checked, what was changed"></textarea></div>
