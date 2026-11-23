@@ -392,7 +392,7 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',csQ:'',csStatus:'new',csDpt:'',csFlag:'',csSel:{},csRange:'all',csMonth:String(new Date().getMonth()),csYear:new Date().getFullYear(),csLimit:0,hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
 /* ---------- stock by location and machine numbering ---------- */
 const MAIN='main';
@@ -419,18 +419,129 @@ function renumberMachines(){
   const cnt={},nid=S.machines.map(m=>{const l=lById(m.line),c=(l?l.code:'XX').toUpperCase();cnt[m.line]=(cnt[m.line]||0)+1;return c+'-'+String(cnt[m.line]).padStart(2,'0')});
   const map={};S.machines.forEach((m,i)=>{if(m.id!==nid[i])map[m.id]=nid[i]});if(!Object.keys(map).length)return false;
   const R=id=>map[id]||id;
-  S.events.forEach(e=>{e.machine=R(e.machine)});S.parts.forEach(p=>{p.compat=p.compat.map(R)});S.assets.forEach(a=>{if(a.machine)a.machine=R(a.machine)});S.txns.forEach(t=>{if(t.machine)t.machine=R(t.machine)});
+  S.events.forEach(e=>{e.machine=R(e.machine)});S.parts.forEach(p=>{p.compat=p.compat.map(R)});S.assets.forEach(a=>{if(a.machine)a.machine=R(a.machine)});(S.costs||[]).forEach(c=>{if(c.machine)c.machine=R(c.machine)});S.txns.forEach(t=>{if(t.machine)t.machine=R(t.machine)});
   S.machines.forEach((m,i)=>{m.id=nid[i];m.code='MC-'+m.id});return true}
 function moveMachine(id,dir){
   const m=mById(id);if(!m)return;const idx=S.machines.map((x,i)=>x.line===m.line?i:-1).filter(i=>i>=0),pos=idx.indexOf(S.machines.indexOf(m)),to=pos+dir;
   if(to<0||to>=idx.length)return;const a=idx[pos],b=idx[to],t=S.machines[a];S.machines[a]=S.machines[b];S.machines[b]=t;
   renumberMachines();commit();toast('Moved '+m.name+' '+(dir<0?'up':'down')+', now '+m.id)}
 
+/* ---------- spare cost reports ---------- */
+const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+function defaultDepts(){const L=re=>{const l=S.lines.find(x=>re.test(x.name)||re.test(x.code));return l?l.id:''};
+  return [{code:'251',name:'SORTING LINE ( WAITING FOR SORTING) 01',line:L(/sort|^sl$/i)},{code:'259',name:'KEDA 03 DRY SQUARING LINE',line:L(/keda\s*0?3|^k3$/i)},{code:'260',name:'KEDA 02 Squaring Machine',line:L(/keda\s*0?2|^k2$/i)},{code:'261',name:'KEDA 02 Boxes Unloading Robot',line:L(/keda\s*0?2|^k2$/i)},{code:'289',name:'DRY SQUARING PLANT',line:''}]}
+function ensureCosts(){let ch=false;if(!Array.isArray(S.costs))S.costs=[];if(!S.costCfg)S.costCfg={};const c=S.costCfg;if(!c.depts)c.depts=defaultDepts();if(!c.threshold)c.threshold=250000;if(!c.autoDays)c.autoDays=60;if(!c.seen)c.seen={};
+  c.depts.forEach(d=>{if(d.line&&!lById(d.line)){d.line='';ch=true}});S.costs.forEach(x=>{if(x.status==='machine'&&!mById(x.machine)){x.status='new';x.machine='';ch=true}});return ch}
+const deptOf=code=>(S.costCfg.depts||[]).find(d=>d.code===String(code));
+const deptLine=code=>(deptOf(code)||{}).line||'';
+const costPart=c=>S.parts.find(p=>p.erp&&p.erp.split(/[,;\s]+/).filter(Boolean).indexOf(c.itemCode)>=0)||null;
+function csEff(c){if(c.status==='removed')return 'removed';if(c.status==='machine'&&mById(c.machine))return 'machine';if(c.status==='line')return 'line';return NOW()-c.importedAt>=S.costCfg.autoDays*DAY?'auto':'new'}
+const csLine=c=>c.status==='machine'&&mById(c.machine)?mById(c.machine).line:deptLine(c.dpt);
+const csLoggedNear=(c,p)=>S.txns.some(t=>t.partId===p.id&&t.type==='Issue to machine'&&Math.abs(t.t-c.t)<=5*DAY);
+function csFlags(c){const f=[],p=costPart(c);if(!c.mrn)f.push('No MRN');if(c.dup)f.push('Repeated line');if(c.type==='return')f.push('Return or receipt');if(c.value>S.costCfg.threshold)f.push('High value');
+  if(p&&c.type==='issue'){if(p.cost>0&&Math.abs(c.unit/p.cost-1)>0.15)f.push('Price differs');if(!csLoggedNear(c,p))f.push('Not logged in app')}return f}
+function csSugg(c){if(c.type!=='issue')return null;const p=costPart(c);if(!p)return null;const line=deptLine(c.dpt);
+  const ms=Array.from(new Set(S.txns.filter(t=>t.partId===p.id&&t.type==='Issue to machine'&&t.machine&&Math.abs(t.t-c.t)<=3*DAY&&(!line||(mById(t.machine)||{}).line===line)).map(t=>t.machine))).filter(id=>mById(id));
+  if(ms.length===1)return {m:ms[0],why:'You logged an issue of this part around that date'};
+  const cm=p.compat.filter(id=>mById(id)&&(mById(id).line===line));if(line&&cm.length===1)return {m:cm[0],why:'Only machine on this line that uses this part'};return null}
+function csMonthKey(t){const d=new Date(t);return d.getFullYear()+'-'+p2(d.getMonth()+1)}
+async function importCostFile(file){
+  if(!file)return;
+  try{await loadScript(XLSX_URL);const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+    let tx=null,names={};
+    wb.SheetNames.forEach(n=>{const a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:null});
+      const hi=a.findIndex((r,i)=>i<40&&r.indexOf('Trans Date')>=0&&r.indexOf('Item Code')>=0&&r.indexOf('Dpt Code')>=0);
+      if(hi>=0&&!tx)tx={hdr:a[hi],data:a.slice(hi+1)};
+      if(a[0]&&/Department Code/i.test(String(a[0][0]))&&/Department Name/i.test(String(a[0][1])))a.slice(1).forEach(r=>{if(r[0]!=null)names[String(r[0])]=String(r[1]||'').trim()})});
+    if(!tx){toast('No transaction sheet found. It needs Trans Date, Dpt Code and Item Code columns.');return}
+    const ix=n=>tx.hdr.indexOf(n),g=(r,n)=>{const i=ix(n);return i<0?null:r[i]};
+    const rows=tx.data.filter(r=>g(r,'Item Code')&&g(r,'Dpt Code')!=null);
+    rows.forEach(r=>{const c=String(g(r,'Dpt Code')).trim();if(!names[c]&&g(r,'Dpt Name'))names[c]=String(g(r,'Dpt Name')).trim()});
+    Object.assign(S.costCfg.seen,names);
+    const mine=new Set(S.costCfg.depts.map(d=>d.code)),have=new Set(S.costs.map(c=>c.key)),occ={},grp={};
+    let added=0,dups=0,other=0;const out=[];
+    rows.forEach(r=>{const code=String(g(r,'Dpt Code')).trim();if(!mine.has(code)){other++;return}
+      const q=Number(g(r,'Quantity'))||0;if(!q)return;let dv=g(r,'Trans Date');let t=dv instanceof Date?dv.getTime():(typeof dv==='number'?Math.round((dv-25569)*86400000):Date.parse(dv));if(!t)return;
+      const unit=Number(g(r,'Item Unit Cost'))||0,val=g(r,'Item Value')!=null?Number(g(r,'Item Value')):q*unit,mrn=g(r,'MRN Number')==null?'':String(g(r,'MRN Number')).trim(),item=String(g(r,'Item Code')).trim();
+      const base=[mrn,item,code,q,t].join('|');occ[base]=(occ[base]||0)+1;const key=base+'#'+occ[base];
+      const gk=[mrn,item,code].join('|');grp[gk]=(grp[gk]||0)+1;
+      if(have.has(key)){dups++;return}
+      out.push({id:'cs-'+Date.now().toString(36)+'-'+out.length,key,gk,t,month:csMonthKey(t),mrn,dpt:code,dptName:names[code]||String(g(r,'Dpt Name')||''),itemCode:item,desc:String(g(r,'Description')||'').trim(),uom:g(r,'UOM')||'',qty:Math.abs(q),unit,value:-val,type:q<0?'issue':'return',by:String(g(r,'Created By')||''),loc:String(g(r,'Locator')||''),status:'new',machine:'',importedAt:NOW(),dup:false})});
+    out.forEach(c=>{if(c.mrn&&grp[c.gk]>1)c.dup=true;delete c.gk});
+    out.forEach(c=>S.costs.push(c));added=out.length;
+    if(!added){toast(dups?'Nothing new. All '+dups+' rows for your departments were already imported.':'No rows found for your departments ('+S.costCfg.depts.map(d=>d.code).join(', ')+'). Use Departments to add codes.');return}
+    ui.csRange='all';ui.csStatus='new';ui.csLimit=0;commit();toast('Imported '+added+' cost lines'+(dups?' ('+dups+' already imported)':'')+'. Assign each one to a machine.')}
+  catch(e){toast('Could not read that file')}}
+function assignCost(ids,val){if(!val||!ids.length)return;const set=new Set(ids);let n=0;
+  S.costs.forEach(c=>{if(!set.has(c.id))return;n++;if(val==='__remove'){c.status='removed';c.machine=''}else if(val==='__line'){c.status='line';c.machine=''}else if(val==='__new'){c.status='new';c.machine='';c.importedAt=NOW()}else{c.status='machine';c.machine=val}c.decidedAt=NOW()});
+  ui.csSel={};commit();toast(n+(n>1?' cost lines ':' cost line ')+(val==='__remove'?'removed from your costs':val==='__line'?'set to line common':val==='__new'?'moved back to assign':'assigned to '+val))}
+function csOpts(c,sel){const line=deptLine(c.dpt),inL=S.machines.filter(m=>m.line===line),ot=S.machines.filter(m=>m.line!==line),mo=a=>a.map(m=>`<option value="${esc(m.id)}"${m.id===sel?' selected':''}>${esc(m.id+' · '+m.name)}</option>`).join('');
+  return `<option value=""${!sel?' selected':''}>Choose…</option><option value="__line"${sel==='__line'?' selected':''}>Whole line (common)</option><option value="__remove">Remove (not mine)</option>${line&&inL.length?`<optgroup label="${esc((lById(line)||{}).name||'This line')}">${mo(inL)}</optgroup>`:''}${ot.length?`<optgroup label="${line?'Other machines':'Machines'}">${mo(line?ot:S.machines)}</optgroup>`:''}`}
+function csFiltered(){
+  const B=boundsFor(ui.csRange,ui.csMonth,ui.csYear),all=ui.csRange==='all',q=ui.csQ.toLowerCase().trim();
+  return S.costs.filter(c=>{if(!all&&(c.t<B.from||c.t>=B.to))return false;const e=csEff(c);
+    if(ui.csStatus==='new'&&e!=='new')return false;if(ui.csStatus==='machine'&&e!=='machine')return false;if(ui.csStatus==='line'&&e!=='line'&&e!=='auto')return false;if(ui.csStatus==='removed'&&e!=='removed')return false;if(ui.csStatus==='all'&&e==='removed')return false;
+    if(ui.csDpt&&c.dpt!==ui.csDpt)return false;if(ui.csFlag&&csFlags(c).indexOf(ui.csFlag)<0)return false;
+    if(!q)return true;const p=costPart(c)||{};return [c.desc,c.itemCode,c.mrn,c.machine,c.by,c.dptName,p.name,p.code].join(' ').toLowerCase().indexOf(q)>=0}).sort((a,b)=>b.t-a.t)}
+function csPeriodRows(){const B=boundsFor(ui.csRange,ui.csMonth,ui.csYear),all=ui.csRange==='all';return S.costs.filter(c=>csEff(c)!=='removed'&&(all||(c.t>=B.from&&c.t<B.to)))}
+function csResults(){
+  if(!S.costs.length)return `<div class="card"><div class="card-b"><h3 style="margin-bottom:6px">Bring in your monthly cost report</h3><p style="color:var(--muted);margin-top:0">Click <b>Import report</b> and choose the factory-wide consumption or misc issue report (.xlsx). The app keeps only the rows for your departments, lists them here, and you pick the machine for each one. Lines you leave for ${S.costCfg.autoDays} days are counted against the line automatically.</p><p style="color:var(--muted);margin-bottom:0">Departments currently included: ${S.costCfg.depts.map(d=>esc(d.code+' '+d.name)).join(', ')||'none'}. Use <b>Departments</b> to change them.</p></div></div>`;
+  const pr=csPeriodRows(),sum=a=>a.reduce((s,c)=>s+c.value,0),eff=pr.map(c=>[c,csEff(c)]);
+  const mach=eff.filter(x=>x[1]==='machine').map(x=>x[0]),com=eff.filter(x=>x[1]==='line'||x[1]==='auto').map(x=>x[0]),wait=eff.filter(x=>x[1]==='new').map(x=>x[0]);
+  const oldest=wait.length?Math.min(...wait.map(c=>c.importedAt)):0,left=oldest?Math.max(0,Math.ceil((oldest+S.costCfg.autoDays*DAY-NOW())/DAY)):0;
+  // by machine
+  const bm={};mach.forEach(c=>{(bm[c.machine]=bm[c.machine]||{v:0,n:0}).v+=c.value;bm[c.machine].n++});
+  const bl={};com.forEach(c=>{const k=csLine(c)||'';(bl[k]=bl[k]||{v:0,n:0}).v+=c.value;bl[k].n++});
+  const mrows=Object.keys(bm).map(id=>({k:id,label:id+' · '+(mById(id)||{}).name,v:bm[id].v,n:bm[id].n,m:1})).concat(Object.keys(bl).map(k=>({k,label:'Common · '+(k?locName(k):'Section (no line)'),v:bl[k].v,n:bl[k].n}))).sort((a,b)=>b.v-a.v);
+  // alerts
+  const fc={};pr.forEach(c=>csFlags(c).forEach(f=>{fc[f]=(fc[f]||0)+1}));
+  const months=new Set(S.costs.map(c=>c.month)),miss=S.txns.filter(t=>t.type==='Issue to machine'&&months.has(csMonthKey(t.t))).filter(t=>{const p=pById(t.partId);if(!p||!p.erp)return false;return !S.costs.some(c=>c.type==='issue'&&costPart(c)===p&&Math.abs(c.t-t.t)<=5*DAY)});
+  const rows=csFiltered(),lim=ui.csLimit||100,vis=rows.slice(0,lim),sel=ui.csSel||{},nsel=Object.keys(sel).filter(k=>sel[k]).length;
+  const flagBtns=Object.keys(fc).sort().map(f=>`<button class="chip warn" data-act="csFlag" data-v="${esc(f)}" aria-pressed="${ui.csFlag===f}" style="border:0;cursor:pointer${ui.csFlag===f?';outline:2px solid var(--warn)':''}">${esc(f)} · ${fc[f]}</button>`).join(' ');
+  return `<div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px">
+    <div class="card"><div class="card-b"><div class="sub">Total spare cost</div><div class="mono" style="font-size:20px;font-weight:600">${lkr(sum(pr))}</div><div class="sub">${pr.length} lines in this period</div></div></div>
+    <div class="card"><div class="card-b"><div class="sub">On machines</div><div class="mono" style="font-size:20px;font-weight:600">${lkr(sum(mach))}</div><div class="sub">${mach.length} lines</div></div></div>
+    <div class="card"><div class="card-b"><div class="sub">Line or section common</div><div class="mono" style="font-size:20px;font-weight:600">${lkr(sum(com))}</div><div class="sub">${com.length} lines</div></div></div>
+    <div class="card"><div class="card-b"><div class="sub">Waiting for a machine</div><div class="mono" style="font-size:20px;font-weight:600;color:${wait.length?'var(--warn)':'inherit'}">${lkr(sum(wait))}</div><div class="sub">${wait.length} lines${wait.length?' · oldest becomes line common in '+left+' day'+(left===1?'':'s'):''}</div></div></div></div>
+  ${(flagBtns||miss.length)?`<div class="card" style="margin-bottom:14px"><div class="card-b"><h3 style="margin:0 0 8px;font-size:16px">Alerts</h3>${flagBtns?`<div>${flagBtns}${ui.csFlag?' <button class="btn sm ghost" data-act="csFlag" data-v="">Show all</button>':''}</div>`:''}${miss.length?`<div style="margin-top:10px"><b>${miss.length} issue${miss.length>1?'s':''} logged in the app but not in the report</b> (spares with an ERP code only):<div class="sub" style="margin-top:4px">${miss.slice(0,8).map(t=>esc(fDate(t.t)+' · '+(pById(t.partId)||{}).name+' × '+(-t.qty)+(t.machine?' · '+t.machine:''))).join('<br>')}${miss.length>8?'<br>and '+(miss.length-8)+' more':''}</div></div>`:''}</div></div>`:''}
+  ${mrows.length?`<div class="card" style="margin-bottom:14px"><div class="card-h"><h2>Cost by machine</h2></div><div class="tbl-wrap"><table><thead><tr><th>Machine</th><th class="r">Lines</th><th class="r">Cost</th></tr></thead><tbody>${mrows.map(r=>`<tr${r.m?` class="click" data-act="openMachine" data-id="${esc(r.k)}" tabindex="0"`:''}><td>${esc(r.label)}</td><td class="r mono">${r.n}</td><td class="r mono">${lkr(r.v)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${nsel?`<div class="card" style="margin-bottom:10px;border-color:var(--accent)"><div class="card-b" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>${nsel} selected</b><select id="csBulk" aria-label="Assign selected to"><option value="">Choose…</option><option value="__line">Whole line (common)</option><option value="__remove">Remove (not mine)</option>${S.machines.map(m=>`<option value="${esc(m.id)}">${esc(m.id+' · '+m.name)}</option>`).join('')}</select><button class="btn primary" data-act="csBulkApply">Apply</button><button class="btn ghost" data-act="csClearSel">Clear</button></div></div>`:''}
+  ${rows.length?`<div class="card"><div class="tbl-wrap"><table><thead><tr><th><input type="checkbox" data-csall aria-label="Select all shown"></th><th>Date</th><th>Item</th><th>Department</th><th class="r">Qty</th><th class="r">Cost</th><th>Machine</th></tr></thead><tbody>${vis.map(c=>{const e=csEff(c),p=costPart(c),fl=csFlags(c),sg=e==='new'?csSugg(c):null;
+    return `<tr><td><input type="checkbox" data-csel="${c.id}" ${sel[c.id]?'checked':''} aria-label="Select"></td><td class="mono" style="white-space:nowrap">${fDate(c.t)}<div class="sub">${c.mrn?'MRN '+esc(c.mrn):'No MRN'}</div></td>
+      <td><div class="name">${esc(c.desc)}</div><div class="sub mono">${esc(c.itemCode)}${p?' · '+esc(p.name):' · <button class="link" data-act="csLink" data-id="'+c.id+'">Link to a spare</button>'}</div>${fl.length?`<div>${fl.map(f=>`<span class="chip warn plain" style="font-size:11px;padding:0 7px;margin:2px 4px 0 0">${esc(f)}</span>`).join('')}</div>`:''}</td>
+      <td>${esc(c.dptName)}<div class="sub mono">${esc(c.dpt)}${deptLine(c.dpt)?' · '+esc(locShort(deptLine(c.dpt))):''}</div></td><td class="r mono">${c.type==='return'?'−':''}${c.qty}<div class="sub">${esc(c.uom)}</div></td><td class="r mono">${lkr(c.value)}<div class="sub">${lkr(c.unit)} each</div></td>
+      <td style="min-width:190px">${e==='removed'?`<span class="sub">Removed</span> <button class="btn sm ghost" data-act="csRestore" data-id="${c.id}">Restore</button>`:`${e==='auto'?'<div class="sub" style="margin-bottom:3px">Auto: line common</div>':''}<select data-cs="${c.id}" aria-label="Machine">${csOpts(c,e==='machine'?c.machine:e==='line'?'__line':'')}</select>${sg?`<div style="margin-top:4px"><button class="btn sm" data-act="csAccept" data-id="${c.id}" data-m="${esc(sg.m)}" title="${esc(sg.why)}">Suggested: ${esc(sg.m)}</button></div>`:''}`}</td></tr>`}).join('')}</tbody></table></div></div>
+    ${rows.length>lim?`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="csMore">Show more (${rows.length-lim} left)</button></div>`:''}`
+   :`<div class="empty">${ui.csStatus==='new'?'Nothing is waiting for a machine in this view.':'No cost lines match these filters.'}</div>`}`}
+function vCosts(){
+  const nd=S.costCfg.depts;
+  return `<div class="filters">${periodPicker('cs')}
+    <select data-f="csStatus" aria-label="Show"><option value="new"${ui.csStatus==='new'?' selected':''}>To assign</option><option value="machine"${ui.csStatus==='machine'?' selected':''}>On machines</option><option value="line"${ui.csStatus==='line'?' selected':''}>Line common</option><option value="removed"${ui.csStatus==='removed'?' selected':''}>Removed</option><option value="all"${ui.csStatus==='all'?' selected':''}>All (not removed)</option></select>
+    <select data-f="csDpt" aria-label="Department"><option value="">All departments</option>${nd.map(d=>`<option value="${esc(d.code)}"${ui.csDpt===d.code?' selected':''}>${esc(d.code+' '+d.name)}</option>`).join('')}</select>
+    <input type="search" data-f="csQ" placeholder="Search item, MRN, technician" value="${esc(ui.csQ)}" aria-label="Search">
+    <button class="btn primary" data-act="csImport">Import report</button><button class="btn" data-act="csDepts">Departments</button><input type="file" id="costFile" accept=".xlsx,.xls,.csv" hidden></div>
+    <div id="results">${csResults()}</div>`}
+function costDeptForm(){
+  const c=S.costCfg;
+  modal('Departments in your section',`
+    <div class="field full"><label>Only report rows for these departments are imported. Pick the line each one belongs to, so unassigned costs fall to that line.</label></div>
+    ${c.depts.map(d=>`<div class="field"><label for="dl_${esc(d.code)}">${esc(d.code+' '+d.name)}</label><select id="dl_${esc(d.code)}" name="dl_${esc(d.code)}"><option value="">Section common (no line)</option>${S.lines.map(l=>`<option value="${l.id}"${l.id===d.line?' selected':''}>${esc(l.name)}</option>`).join('')}</select></div><div class="field"><label><input type="checkbox" name="dx_${esc(d.code)}"> Remove this department</label></div>`).join('')}
+    <div class="field full"><label for="f_add">Add department codes</label><input id="f_add" name="add" placeholder="e.g. 250, 280"><span class="hint">Names come from the last report you imported.</span></div>
+    <div class="field"><label for="f_th">Flag lines above (LKR)</label><input id="f_th" type="number" name="th" min="0" value="${c.threshold}"></div>
+    <div class="field"><label for="f_ad">Auto line common after (days)</label><input id="f_ad" type="number" name="ad" min="1" value="${c.autoDays}"></div>`,fd=>{
+    c.depts=c.depts.filter(d=>!fd.get('dx_'+d.code)).map(d=>Object.assign(d,{line:fd.get('dl_'+d.code)||''}));
+    (fd.get('add')||'').split(/[,\s]+/).filter(Boolean).forEach(code=>{if(!c.depts.some(d=>d.code===code))c.depts.push({code,name:c.seen[code]||'Department '+code,line:''})});
+    c.threshold=Math.max(0,parseInt(fd.get('th'))||0)||250000;c.autoDays=Math.max(1,parseInt(fd.get('ad'))||60);commit();toast('Departments saved')},{submit:'Save'})}
+function csLinkForm(id){const c=S.costs.find(x=>x.id===id);if(!c)return;
+  modal('Link report item to a spare part',`<div class="field full"><label>Report item</label><input value="${esc(c.itemCode+' · '+c.desc)}" disabled></div>
+    <div class="field full"><label for="f_p">Spare part</label><select id="f_p" name="part" required><option value="">Choose…</option>${S.parts.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name+' · '+p.code)}</option>`).join('')}</select><span class="hint">Remembered, so next month's report links itself.</span></div>`,fd=>{
+    const p=pById(fd.get('part'));if(!p)return 'Choose a spare part.';const cur=(p.erp||'').split(/[,;\s]+/).filter(Boolean);if(cur.indexOf(c.itemCode)<0)cur.push(c.itemCode);p.erp=cur.join(', ');commit();toast('Linked to '+p.name)},{submit:'Link'})}
+
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
 lastSnap=snap();
-function migrate(){const a=ensureStock(),b=renumberMachines();return a||b}
+function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts();return a||b||c}
 function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;migrate();lastSnap=snap();edits++;save();render();
   if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
 function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
@@ -464,6 +575,7 @@ const IC={
  overview:'<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
  reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
  downtime:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+ costs:'<path d="M12 3v18M16.5 7.5C16.5 5.8 14.5 5 12 5S7.5 5.8 7.5 7.8 9.5 10.5 12 11s4.5 1.2 4.5 3.2S14.5 17 12 17s-4.5-.8-4.5-2.5"/>',
  history:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 8v4l3 2"/>',
  parts:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
  machines:'<rect x="3" y="9" width="18" height="10" rx="2"/><path d="M7 9V5h4v4M15 9V7h3v2M7 14h.01M12 14h5"/>',
@@ -596,7 +708,7 @@ function lineForm(id){
 }
 function deleteLine(id){const l=lById(id),n=S.machines.filter(m=>m.line===id).length;
   if(n){toast('Move or remove the '+n+' machine'+(n>1?'s':'')+' on '+l.name+' first');return}
-  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.parts.forEach(p=>{if(p.byLine&&p.byLine[id]){p.byLine.main=(p.byLine.main||0)+p.byLine[id];delete p.byLine[id]}});S.lines=S.lines.filter(x=>x.id!==id);commit();toast('Line deleted. Its spare stock moved to main stores.')})}
+  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.parts.forEach(p=>{if(p.byLine&&p.byLine[id]){p.byLine.main=(p.byLine.main||0)+p.byLine[id];delete p.byLine[id]}});S.lines=S.lines.filter(x=>x.id!==id);ensureCosts();commit();toast('Line deleted. Its spare stock moved to main stores.')})}
 function machineForm(id,lineId){
   const m=id?mById(id):null;
   if(!S.lines.length){toast('Add a production line first');return}
@@ -616,7 +728,7 @@ function machineForm(id,lineId){
 }
 function deleteMachine(id){const m=mById(id),ev=S.events.filter(e=>e.machine===id).length,as=S.assets.filter(a=>a.machine===id).length;
   confirmBox('Remove '+esc(m.id)+' '+esc(m.name),'This deletes the machine and its '+ev+' downtime record'+(ev===1?'':'s')+'.'+(as?' '+as+' serial-numbered asset'+(as>1?'s':'')+' fitted to it will become unassigned.':'')+' You can undo this.','Remove machine',()=>{
-    S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});
+    S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});(S.costs||[]).forEach(c=>{if(c.machine===id){c.machine='';c.status='new'}});
     S.machines=S.machines.filter(x=>x.id!==id);renumberMachines();closeDrawer();commit();toast('Removed machine '+id+'. Remaining codes renumbered.')})}
 function autoCode(cat){const pre={Electrical:'EL',Mechanical:'ME',Pneumatic:'PN',Electronic:'ET',General:'GN'}[cat]||'GN',re=new RegExp('^'+pre+'-(\\d+)$');
   let mx=0;S.parts.forEach(x=>{const m=re.exec(x.code);if(m)mx=Math.max(mx,+m[1])});return pre+'-'+String(mx+1).padStart(4,'0')}
@@ -624,6 +736,7 @@ function partForm(id){
   const p=id?pById(id):null;
   modal(p?'Edit spare part':'Add spare part',`
     <div class="field"><label for="f_c">Stores code (optional)</label><input id="f_c" name="code" value="${esc(p?p.code:'')}" placeholder="Leave blank to assign automatically"></div>
+    <div class="field"><label for="f_erp">ERP item code (cost report)</label><input id="f_erp" name="erp" value="${esc(p?p.erp||'':'')}" placeholder="e.g. SE.005.P00379.00.00"><span class="hint">Links this part to the monthly cost report. Separate several codes with commas.</span></div>
     <div class="field"><label for="f_pn">Part number</label><input id="f_pn" name="pn" value="${esc(p?p.pn:'')}"></div>
     <div class="field full"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(p?p.name:'')}" required></div>
     <div class="field"><label for="f_b">Brand</label><input id="f_b" name="brand" value="${esc(p?p.brand:'')}"></div>
@@ -647,7 +760,7 @@ function partForm(id){
     const ser=!!fd.get('serialized');if(p&&p.serialized&&!ser&&S.assets.some(a=>a.part===p.id))return 'This part has serial-numbered assets. Remove them first or keep it serialized.';
     const o={code,pn:fd.get('pn'),name:fd.get('name').trim(),brand:fd.get('brand'),cat:fd.get('cat'),serialized:ser,repairable:!!fd.get('repairable'),cost:+fd.get('cost')||0,min,reorder:re,max:mx,lead:+fd.get('lead')||0,loc:fd.get('loc'),supplier:fd.get('supplier'),compat:fd.getAll('compat')};
     const cnt={};locKeys().forEach(k=>{cnt[k]=Math.max(0,parseInt(fd.get('ls_'+k))||0)});
-    o.fitted={};S.lines.forEach(l=>{const n=Math.max(0,parseInt(fd.get('fi_'+l.id))||0);if(n)o.fitted[l.id]=n});
+    o.erp=(fd.get('erp')||'').trim();o.fitted={};S.lines.forEach(l=>{const n=Math.max(0,parseInt(fd.get('fi_'+l.id))||0);if(n)o.fitted[l.id]=n});
     if(p){const before=p.stock;Object.assign(p,o);if(locKeys().some(k=>(p.byLine[k]||0)!==cnt[k])){p.byLine=cnt;p.stock=stockTotal(p);S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Stock adjustment',qty:p.stock-before,machine:'',ref:'Edited in part form',by:'Stores'})}commit();toast('Part updated');return}
     const np=Object.assign({id:newId('P'),byLine:cnt,stock:0},o);np.stock=stockTotal(np);S.parts.push(np);if(np.stock>0)S.txns.push({id:newId('tx'),t:NOW(),partId:np.id,type:'Opening balance',qty:np.stock,machine:'',ref:'Added part',by:'Stores'});commit();toast('Part added')},{submit:p?'Save':'Add part'});
 }
@@ -798,6 +911,7 @@ const VIEWS={
  reports:{t:'Reports',s:()=>'Downtime, availability and spend by month and year'},
  downtime:{t:'Downtime',s:()=>'Every stop, its cause and the spares it used'},
  parts:{t:'Spare parts',s:()=>S.parts.length+' parts in stores'},
+ costs:{t:'Spare costs',s:()=>'Bring in the monthly cost report and assign each line to a machine'},
  history:{t:'Stock history',s:()=>'Every spare issued, received, moved, adjusted or repaired'},
  machines:{t:'Machines',s:()=>S.machines.length+' machines on '+S.lines.length+' lines'},
  assets:{t:'Serialized assets',s:()=>'Drives and sensors tracked by serial number'},
@@ -1074,6 +1188,7 @@ function machineDrawer(id){return ()=>{const m=mById(id);if(!m)return '';const l
   <div class="sec"><h4>Last 90 days</h4><div class="facts"><div><span>Stops</span><b class="num">${ev.length}</b></div><div><span>Unplanned downtime</span><b class="num">${fDur(sum(un))}</b></div><div><span>Average repair time</span><b class="num">${cl.length?fDur(sum(cl)/cl.length):'–'}</b></div><div><span>Manufacturer</span><b>${esc(m.maker||'–')}</b></div></div></div>
   <div class="sec"><h4>Spares that fit this machine</h4><div class="row-list">${S.parts.filter(p=>p.compat.includes(id)).sort((a,b)=>stock(a).r-stock(b).r).map(p=>{const s=stock(p);return `<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button></div><div class="s mono">${esc(p.code)} · ${p.byLine[m.line]||0} on ${esc(l.code)} · ${p.stock} in total</div></div>${statusBadge(s.k,s.c)}</div>`}).join('')||'<div class="sub">No parts linked yet.</div>'}</div></div>
   ${S.assets.some(a=>a.machine===id)?`<div class="sec"><h4>Serial-numbered assets fitted</h4>${S.assets.filter(a=>a.machine===id).map(a=>`<div class="item"><div class="grow"><div class="t mono">${esc(a.serial)}</div><div class="s">${esc((pById(a.part)||{}).name||'')}</div></div>${statusBadge(a.status,a.status==='Active on line'?'ok':'warn')}</div>`).join('')}</div>`:''}
+  <div class="sec"><h4>Spare cost (from cost reports)</h4>${(()=>{const cs=S.costs.filter(c=>c.status==='machine'&&c.machine===id);if(!cs.length)return '<div class="sub">No report costs assigned to this machine yet.</div>';const bm={};cs.forEach(c=>{bm[c.month]=(bm[c.month]||0)+c.value});const ks=Object.keys(bm).sort().reverse();return `<div class="row-list">${ks.slice(0,6).map(k=>`<div class="item"><div class="grow"><div class="t">${esc(k)}</div></div><span class="mono">${lkr(bm[k])}</span></div>`).join('')}</div><div class="sub" style="margin-top:6px">Total ${lkr(cs.reduce((a,c)=>a+c.value,0))} across ${cs.length} lines</div>`})()}</div>
   <div class="sec"><h4>Spares used on this machine</h4>${(()=>{const u=S.txns.filter(t=>t.machine===id&&t.type==='Issue to machine').sort((a,b)=>b.t-a.t);return u.length?`<div class="row-list">${u.slice(0,8).map(t=>{const p=pById(t.partId)||{name:'Deleted part',code:''};return `<div class="item"><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">${fDate(t.t)} · ${esc(p.code)}${t.ref?' · '+esc(t.ref):''}${t.by?' · '+esc(t.by):''}</div></div><span class="mono up">${t.qty}</span></div>`}).join('')}</div><button class="btn sm ghost" data-act="hsForMachine" data-id="${esc(id)}" style="margin-top:8px">See all ${u.length} in stock history</button>`:'<div class="sub">No spares have been issued to this machine yet.</div>'})()}</div>
   <div class="sec"><h4>Recent stops</h4><div class="row-list">${ev.slice(0,7).map(e=>`<div class="item"><div class="grow"><div class="t">${esc(e.cause)}</div><div class="s">${fDT(evStart(e))} · ${esc(e.desc||'')}</div></div>${e.end?`<span class="mono">${fDur(evMin(e))}</span>`:statusBadge('Down','crit')}</div>`).join('')||'<div class="sub">No stops in 90 days.</div>'}</div></div>`}}
 function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=stock(p),tx=S.txns.filter(t=>t.partId===id).sort((a,b)=>b.t-a.t).slice(0,8),pos=openPO(id),as=S.assets.filter(a=>a.part===id);
@@ -1148,6 +1263,7 @@ function tables(){
   const pc=id=>{const p=pById(id);return p?p.code:''},pn=id=>{const p=pById(id);return p?p.name:''};
   return {
    'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k))).concat(S.lines.map(l=>'Installed on '+l.name))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)).concat(S.lines.map(l=>fittedOn(p,l.id).n)))),
+   'Spare costs':[['Date','MRN','Dept code','Department','Item code','Description','Qty','Unit cost (LKR)','Cost (LKR)','Status','Machine','Line','Linked part']].concat(S.costs.map(c=>{const e=csEff(c),pp=costPart(c),ln=csLine(c);return [dayKey(c.t),c.mrn,c.dpt,c.dptName,c.itemCode,c.desc,(c.type==='return'?-1:1)*c.qty,c.unit,c.value,{new:'To assign',machine:'On machine',line:'Line common',auto:'Line common (auto)',removed:'Removed'}[e],e==='machine'?c.machine:'',ln?locName(ln):'',pp?pp.name:'']})),
    'Machines':[['Code','Name','Serial number','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,m.serial||'',ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
@@ -1242,13 +1358,13 @@ function vSettings(){
 
 /* ---------- render ---------- */
 function renderNav(){
-  const items=[['overview','Overview'],['reports','Reports'],['downtime','Downtime'],['parts','Spare parts'],['history','Stock history'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
-  const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false]};
+  const items=[['overview','Overview'],['reports','Reports'],['downtime','Downtime'],['parts','Spare parts'],['history','Stock history'],['costs','Spare costs'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
+  const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false],costs:[S.costs.filter(c=>csEff(c)==='new').length,S.costs.some(c=>csEff(c)==='new'&&csFlags(c).some(f=>f!=='No MRN'&&f!=='Return or receipt'))]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
 function render(){applyBrand();
   renderNav();
-  const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,history:vHistory,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
+  const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,history:vHistory,costs:vCosts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
   const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newLine">${ic('plus')} Add line</button><button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,assets:`<button class="btn" data-act="newAsset">${ic('plus')} Add asset</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
   const y=window.scrollY;
   $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions"><button class="btn" data-act="undo" ${undoStack.length?'':'disabled'} title="Undo (Ctrl+Z)" aria-label="Undo">${ic('undo')}<span class="lbl">Undo</span></button><button class="btn" data-act="redo" ${redoStack.length?'':'disabled'} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${ic('redo')}<span class="lbl">Redo</span></button>${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
@@ -1263,13 +1379,17 @@ const ACT={
  closeDrawer,closeModal,
  openMachine:b=>{closeModal();openDrawer(machineDrawer(b.dataset.id))},
  openPart:b=>openDrawer(partDrawer(b.dataset.id)),
+ csImport:()=>{const f=$('#costFile');if(f)f.click()},csDepts:()=>costDeptForm(),csLink:b=>csLinkForm(b.dataset.id),csMore:()=>{ui.csLimit=(ui.csLimit||100)+100;csRefresh()},
+ csFlag:b=>{ui.csFlag=ui.csFlag===b.dataset.v?'':b.dataset.v;if(ui.csFlag&&ui.csStatus==='new'){}csRefresh()},csClearSel:()=>{ui.csSel={};csRefresh()},
+ csBulkApply:()=>{const v=($('#csBulk')||{}).value,ids=Object.keys(ui.csSel||{}).filter(k=>ui.csSel[k]);if(!v){toast('Choose where to assign the selected lines');return}assignCost(ids,v)},
+ csRestore:b=>assignCost([b.dataset.id],'__new'),csAccept:b=>assignCost([b.dataset.id],b.dataset.m),
  hsMore:()=>{ui.hsLimit=(ui.hsLimit||100)+100;render()},
  hsForMachine:b=>{Object.assign(ui,{hsQ:'',hsType:'',hsMachine:b.dataset.id,hsRange:'all',hsLimit:0,view:'history'});closeDrawer();render();window.scrollTo(0,0);try{history.replaceState(null,'','#history')}catch(e){}},
  hsForPart:b=>{const p=pById(b.dataset.id);Object.assign(ui,{hsQ:p?p.code:'',hsType:'',hsMachine:'',hsRange:'all',hsLimit:0,view:'history'});closeDrawer();render();window.scrollTo(0,0);try{history.replaceState(null,'','#history')}catch(e){}},
  logDowntime:b=>logDowntime(b.dataset.id),
  resolveDowntime:b=>logDowntime(null,b.dataset.id),
  deleteEvent:b=>{if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Confirm?';setTimeout(()=>{b.dataset.armed='';b.textContent='Delete'},3000);return}S.events=S.events.filter(e=>e.id!==b.dataset.id);commit();toast('Event deleted')},
- setF:b=>{ui[b.dataset.k]=b.dataset.v;if(b.dataset.k==='dtRange')ui.dtLimit=0;if(b.dataset.k==='hsRange')ui.hsLimit=0;render()},
+ setF:b=>{ui[b.dataset.k]=b.dataset.v;if(b.dataset.k==='dtRange')ui.dtLimit=0;if(b.dataset.k==='hsRange')ui.hsLimit=0;if(b.dataset.k==='csRange')ui.csLimit=0;render()},
  stockIssue:b=>stockModal('issue',b.dataset.id),stockReceive:b=>stockModal('receive',b.dataset.id),stockAdjust:b=>stockModal('adjust',b.dataset.id),
  moveMachine:b=>moveMachine(b.dataset.id,+b.dataset.dir),stockTransfer:b=>stockModal('transfer',b.dataset.id),
  newPart:()=>partForm(),newMachine:b=>machineForm(null,b.dataset.id),newPO:b=>poForm(b.dataset.id),newRepair:b=>repairForm(b.dataset.id),
@@ -1298,10 +1418,16 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey||e.metaKey)&&!/INPUT|TEXTAREA|SELECT/.test(tg)){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();undo();return}if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();redo();return}}
   if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
   if((e.key==='Enter'||e.key===' ')&&e.target.tagName==='TR'&&e.target.dataset.act){e.preventDefault();ACT[e.target.dataset.act](e.target)}});
-function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt|hs)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';ui.dtLimit=0;ui.hsLimit=0;render();return}if(/^hs/.test(t.dataset.f))ui.hsLimit=0;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults,history:hsResults})[ui.view]()}else render()}
+function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt|hs|cs)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';ui.dtLimit=0;ui.hsLimit=0;ui.csLimit=0;render();return}if(/^hs/.test(t.dataset.f))ui.hsLimit=0;if(/^cs/.test(t.dataset.f))ui.csLimit=0;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults,history:hsResults,costs:csResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
-document.addEventListener('change',e=>{if(e.target.id==='logoFile'){setLogo(e.target.files[0]);return}if(e.target.type==='search')return;onFilter(e)});
+const csRefresh=()=>{const r=$('#results');if(r&&ui.view==='costs')r.innerHTML=csResults()};
+document.addEventListener('change',e=>{const d=e.target.dataset||{};
+  if(e.target.id==='costFile'){const f=e.target.files[0];importCostFile(f).then(()=>{try{e.target.value=''}catch(x){}});return}
+  if(d.cs){assignCost([d.cs],e.target.value);return}
+  if(d.csel){ui.csSel=ui.csSel||{};ui.csSel[d.csel]=e.target.checked;csRefresh();return}
+  if(e.target.hasAttribute('data-csall')){ui.csSel=ui.csSel||{};csFiltered().slice(0,ui.csLimit||100).forEach(c=>{ui.csSel[c.id]=e.target.checked});csRefresh();return}
+  if(e.target.id==='logoFile'){setLogo(e.target.files[0]);return}if(e.target.type==='search')return;onFilter(e)});
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;

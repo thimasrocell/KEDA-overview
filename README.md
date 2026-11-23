@@ -52,3 +52,4 @@ To avoid entering the keys on every device or browser, use either of these (afte
 - **Copy config.js**: paste the text into `config.js` in this repo and commit it. Every visitor then connects automatically. Only do this if the repo is private or you are happy for anyone who can see it to be able to edit your data.
 
 Every push to `main` redeploys automatically. The app works the same on GitHub Pages and Vercel, since all data lives in Supabase and the browser.
+- **Spare costs:** import the monthly factory consumption or misc issue report (.xlsx). Only rows for your departments are kept, listed for you to assign to a machine, a whole line, or remove. Lines left unassigned for 60 days count against the line automatically. Alerts flag high value, repeated, missing-MRN, return and price-mismatch lines.
