@@ -53,3 +53,4 @@ To avoid entering the keys on every device or browser, use either of these (afte
 
 Every push to `main` redeploys automatically. The app works the same on GitHub Pages and Vercel, since all data lives in Supabase and the browser.
 - **Spare costs:** import the monthly factory consumption or misc issue report (.xlsx). Only rows for your departments are kept, listed for you to assign to a machine, a whole line, or remove. Lines left unassigned for 60 days count against the line automatically. Alerts flag high value, repeated, missing-MRN, return and price-mismatch lines.
+- **Testing take-outs:** a spare can be taken out for testing and returned unused. The part shows "Tested N× and returned" until it is issued to a machine; then the marker clears and the history ("used after N test take-outs") is kept.

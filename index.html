@@ -83,6 +83,7 @@ h1,h2,h3{margin:0;font-family:var(--f-display);font-weight:600;letter-spacing:.0
 .chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.crit{background:var(--crit-soft);color:var(--crit)} .chip.info{background:var(--accent-soft);color:var(--accent)}
 .chip.plain::before{display:none}
+.chip.info{background:var(--accent-soft);color:var(--accent)}
 
 /* production line strips */
 .line{padding:14px 16px 16px;border-top:1px solid var(--line)}
@@ -419,7 +420,7 @@ function renumberMachines(){
   const cnt={},nid=S.machines.map(m=>{const l=lById(m.line),c=(l?l.code:'XX').toUpperCase();cnt[m.line]=(cnt[m.line]||0)+1;return c+'-'+String(cnt[m.line]).padStart(2,'0')});
   const map={};S.machines.forEach((m,i)=>{if(m.id!==nid[i])map[m.id]=nid[i]});if(!Object.keys(map).length)return false;
   const R=id=>map[id]||id;
-  S.events.forEach(e=>{e.machine=R(e.machine)});S.parts.forEach(p=>{p.compat=p.compat.map(R)});S.assets.forEach(a=>{if(a.machine)a.machine=R(a.machine)});(S.costs||[]).forEach(c=>{if(c.machine)c.machine=R(c.machine)});S.txns.forEach(t=>{if(t.machine)t.machine=R(t.machine)});
+  S.events.forEach(e=>{e.machine=R(e.machine)});S.parts.forEach(p=>{p.compat=p.compat.map(R)});S.assets.forEach(a=>{if(a.machine)a.machine=R(a.machine)});(S.costs||[]).forEach(c=>{if(c.machine)c.machine=R(c.machine)});(S.trials||[]).forEach(x=>{if(x.machine)x.machine=R(x.machine)});S.txns.forEach(t=>{if(t.machine)t.machine=R(t.machine)});
   S.machines.forEach((m,i)=>{m.id=nid[i];m.code='MC-'+m.id});return true}
 function moveMachine(id,dir){
   const m=mById(id);if(!m)return;const idx=S.machines.map((x,i)=>x.line===m.line?i:-1).filter(i=>i>=0),pos=idx.indexOf(S.machines.indexOf(m)),to=pos+dir;
@@ -430,7 +431,7 @@ function moveMachine(id,dir){
 const XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 function defaultDepts(){const L=re=>{const l=S.lines.find(x=>re.test(x.name)||re.test(x.code));return l?l.id:''};
   return [{code:'251',name:'SORTING LINE ( WAITING FOR SORTING) 01',line:L(/sort|^sl$/i)},{code:'259',name:'KEDA 03 DRY SQUARING LINE',line:L(/keda\s*0?3|^k3$/i)},{code:'260',name:'KEDA 02 Squaring Machine',line:L(/keda\s*0?2|^k2$/i)},{code:'261',name:'KEDA 02 Boxes Unloading Robot',line:L(/keda\s*0?2|^k2$/i)},{code:'289',name:'DRY SQUARING PLANT',line:''}]}
-function ensureCosts(){let ch=false;if(!Array.isArray(S.costs))S.costs=[];if(!S.costCfg)S.costCfg={};const c=S.costCfg;if(!c.depts)c.depts=defaultDepts();if(!c.threshold)c.threshold=250000;if(!c.autoDays)c.autoDays=60;if(!c.seen)c.seen={};
+function ensureCosts(){let ch=false;if(!Array.isArray(S.costs))S.costs=[];if(!S.costCfg)S.costCfg={};const c=S.costCfg;if(!c.depts)c.depts=defaultDepts();if(c.thresholdV!==2){c.threshold=50000;c.thresholdV=2}if(!c.threshold)c.threshold=50000;if(!c.autoDays)c.autoDays=60;if(!c.seen)c.seen={};
   c.depts.forEach(d=>{if(d.line&&!lById(d.line)){d.line='';ch=true}});S.costs.forEach(x=>{if(x.status==='machine'&&!mById(x.machine)){x.status='new';x.machine='';ch=true}});return ch}
 const deptOf=code=>(S.costCfg.depts||[]).find(d=>d.code===String(code));
 const deptLine=code=>(deptOf(code)||{}).line||'';
@@ -438,7 +439,7 @@ const costPart=c=>S.parts.find(p=>p.erp&&p.erp.split(/[,;\s]+/).filter(Boolean).
 function csEff(c){if(c.status==='removed')return 'removed';if(c.status==='machine'&&mById(c.machine))return 'machine';if(c.status==='line')return 'line';return NOW()-c.importedAt>=S.costCfg.autoDays*DAY?'auto':'new'}
 const csLine=c=>c.status==='machine'&&mById(c.machine)?mById(c.machine).line:deptLine(c.dpt);
 const csLoggedNear=(c,p)=>S.txns.some(t=>t.partId===p.id&&t.type==='Issue to machine'&&Math.abs(t.t-c.t)<=5*DAY);
-function csFlags(c){const f=[],p=costPart(c);if(!c.mrn)f.push('No MRN');if(c.dup)f.push('Repeated line');if(c.type==='return')f.push('Return or receipt');if(c.value>S.costCfg.threshold)f.push('High value');
+function csFlags(c){const f=[],p=costPart(c);if(!c.mrn)f.push('No MRN');if(c.dup)f.push('Repeated line');if(c.type==='return')f.push('Return or receipt');if(c.unit>S.costCfg.threshold)f.push('High value');
   if(p&&c.type==='issue'){if(p.cost>0&&Math.abs(c.unit/p.cost-1)>0.15)f.push('Price differs');if(!csLoggedNear(c,p))f.push('Not logged in app')}return f}
 function csSugg(c){if(c.type!=='issue')return null;const p=costPart(c);if(!p)return null;const line=deptLine(c.dpt);
   const ms=Array.from(new Set(S.txns.filter(t=>t.partId===p.id&&t.type==='Issue to machine'&&t.machine&&Math.abs(t.t-c.t)<=3*DAY&&(!line||(mById(t.machine)||{}).line===line)).map(t=>t.machine))).filter(id=>mById(id));
@@ -497,7 +498,7 @@ function csResults(){
   const fc={};pr.forEach(c=>csFlags(c).forEach(f=>{fc[f]=(fc[f]||0)+1}));
   const months=new Set(S.costs.map(c=>c.month)),miss=S.txns.filter(t=>t.type==='Issue to machine'&&months.has(csMonthKey(t.t))).filter(t=>{const p=pById(t.partId);if(!p||!p.erp)return false;return !S.costs.some(c=>c.type==='issue'&&costPart(c)===p&&Math.abs(c.t-t.t)<=5*DAY)});
   const rows=csFiltered(),lim=ui.csLimit||100,vis=rows.slice(0,lim),sel=ui.csSel||{},nsel=Object.keys(sel).filter(k=>sel[k]).length;
-  const flagBtns=Object.keys(fc).sort().map(f=>`<button class="chip warn" data-act="csFlag" data-v="${esc(f)}" aria-pressed="${ui.csFlag===f}" style="border:0;cursor:pointer${ui.csFlag===f?';outline:2px solid var(--warn)':''}">${esc(f)} · ${fc[f]}</button>`).join(' ');
+  const flagBtns=Object.keys(fc).sort().map(f=>`<button class="chip ${f==='High value'?'crit':'warn'}" data-act="csFlag" data-v="${esc(f)}" aria-pressed="${ui.csFlag===f}" style="border:0;cursor:pointer${ui.csFlag===f?';outline:2px solid currentColor':''}">${esc(f)} · ${fc[f]}</button>`).join(' ');
   return `<div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px">
     <div class="card"><div class="card-b"><div class="sub">Total spare cost</div><div class="mono" style="font-size:20px;font-weight:600">${lkr(sum(pr))}</div><div class="sub">${pr.length} lines in this period</div></div></div>
     <div class="card"><div class="card-b"><div class="sub">On machines</div><div class="mono" style="font-size:20px;font-weight:600">${lkr(sum(mach))}</div><div class="sub">${mach.length} lines</div></div></div>
@@ -508,7 +509,7 @@ function csResults(){
   ${nsel?`<div class="card" style="margin-bottom:10px;border-color:var(--accent)"><div class="card-b" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>${nsel} selected</b><select id="csBulk" aria-label="Assign selected to"><option value="">Choose…</option><option value="__line">Whole line (common)</option><option value="__remove">Remove (not mine)</option>${S.machines.map(m=>`<option value="${esc(m.id)}">${esc(m.id+' · '+m.name)}</option>`).join('')}</select><button class="btn primary" data-act="csBulkApply">Apply</button><button class="btn ghost" data-act="csClearSel">Clear</button></div></div>`:''}
   ${rows.length?`<div class="card"><div class="tbl-wrap"><table><thead><tr><th><input type="checkbox" data-csall aria-label="Select all shown"></th><th>Date</th><th>Item</th><th>Department</th><th class="r">Qty</th><th class="r">Cost</th><th>Machine</th></tr></thead><tbody>${vis.map(c=>{const e=csEff(c),p=costPart(c),fl=csFlags(c),sg=e==='new'?csSugg(c):null;
     return `<tr><td><input type="checkbox" data-csel="${c.id}" ${sel[c.id]?'checked':''} aria-label="Select"></td><td class="mono" style="white-space:nowrap">${fDate(c.t)}<div class="sub">${c.mrn?'MRN '+esc(c.mrn):'No MRN'}</div></td>
-      <td><div class="name">${esc(c.desc)}</div><div class="sub mono">${esc(c.itemCode)}${p?' · '+esc(p.name):' · <button class="link" data-act="csLink" data-id="'+c.id+'">Link to a spare</button>'}</div>${fl.length?`<div>${fl.map(f=>`<span class="chip warn plain" style="font-size:11px;padding:0 7px;margin:2px 4px 0 0">${esc(f)}</span>`).join('')}</div>`:''}</td>
+      <td><div class="name">${esc(c.desc)}</div><div class="sub mono">${esc(c.itemCode)}${p?' · '+esc(p.name):' · <button class="link" data-act="csLink" data-id="'+c.id+'">Link to a spare</button>'}</div>${fl.length?`<div>${fl.map(f=>`<span class="chip ${f==='High value'?'crit':'warn'} plain" style="font-size:11px;padding:0 7px;margin:2px 4px 0 0${f==='High value'?';font-weight:700':''}">${esc(f==='High value'?'High value · '+lkr(c.unit)+' each':f)}</span>`).join('')}</div>`:''}</td>
       <td>${esc(c.dptName)}<div class="sub mono">${esc(c.dpt)}${deptLine(c.dpt)?' · '+esc(locShort(deptLine(c.dpt))):''}</div></td><td class="r mono">${c.type==='return'?'−':''}${c.qty}<div class="sub">${esc(c.uom)}</div></td><td class="r mono">${lkr(c.value)}<div class="sub">${lkr(c.unit)} each</div></td>
       <td style="min-width:190px">${e==='removed'?`<span class="sub">Removed</span> <button class="btn sm ghost" data-act="csRestore" data-id="${c.id}">Restore</button>`:`${e==='auto'?'<div class="sub" style="margin-bottom:3px">Auto: line common</div>':''}<select data-cs="${c.id}" aria-label="Machine">${csOpts(c,e==='machine'?c.machine:e==='line'?'__line':'')}</select>${sg?`<div style="margin-top:4px"><button class="btn sm" data-act="csAccept" data-id="${c.id}" data-m="${esc(sg.m)}" title="${esc(sg.why)}">Suggested: ${esc(sg.m)}</button></div>`:''}`}</td></tr>`}).join('')}</tbody></table></div></div>
     ${rows.length>lim?`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="csMore">Show more (${rows.length-lim} left)</button></div>`:''}`
@@ -527,21 +528,59 @@ function costDeptForm(){
     <div class="field full"><label>Only report rows for these departments are imported. Pick the line each one belongs to, so unassigned costs fall to that line.</label></div>
     ${c.depts.map(d=>`<div class="field"><label for="dl_${esc(d.code)}">${esc(d.code+' '+d.name)}</label><select id="dl_${esc(d.code)}" name="dl_${esc(d.code)}"><option value="">Section common (no line)</option>${S.lines.map(l=>`<option value="${l.id}"${l.id===d.line?' selected':''}>${esc(l.name)}</option>`).join('')}</select></div><div class="field"><label><input type="checkbox" name="dx_${esc(d.code)}"> Remove this department</label></div>`).join('')}
     <div class="field full"><label for="f_add">Add department codes</label><input id="f_add" name="add" placeholder="e.g. 250, 280"><span class="hint">Names come from the last report you imported.</span></div>
-    <div class="field"><label for="f_th">Flag lines above (LKR)</label><input id="f_th" type="number" name="th" min="0" value="${c.threshold}"></div>
+    <div class="field"><label for="f_th">High value: item costs more than (LKR each)</label><input id="f_th" type="number" name="th" min="0" value="${c.threshold}"></div>
     <div class="field"><label for="f_ad">Auto line common after (days)</label><input id="f_ad" type="number" name="ad" min="1" value="${c.autoDays}"></div>`,fd=>{
     c.depts=c.depts.filter(d=>!fd.get('dx_'+d.code)).map(d=>Object.assign(d,{line:fd.get('dl_'+d.code)||''}));
     (fd.get('add')||'').split(/[,\s]+/).filter(Boolean).forEach(code=>{if(!c.depts.some(d=>d.code===code))c.depts.push({code,name:c.seen[code]||'Department '+code,line:''})});
-    c.threshold=Math.max(0,parseInt(fd.get('th'))||0)||250000;c.autoDays=Math.max(1,parseInt(fd.get('ad'))||60);commit();toast('Departments saved')},{submit:'Save'})}
+    c.threshold=Math.max(0,parseInt(fd.get('th'))||0)||50000;c.autoDays=Math.max(1,parseInt(fd.get('ad'))||60);commit();toast('Departments saved')},{submit:'Save'})}
 function csLinkForm(id){const c=S.costs.find(x=>x.id===id);if(!c)return;
   modal('Link report item to a spare part',`<div class="field full"><label>Report item</label><input value="${esc(c.itemCode+' · '+c.desc)}" disabled></div>
     <div class="field full"><label for="f_p">Spare part</label><select id="f_p" name="part" required><option value="">Choose…</option>${S.parts.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name+' · '+p.code)}</option>`).join('')}</select><span class="hint">Remembered, so next month's report links itself.</span></div>`,fd=>{
     const p=pById(fd.get('part'));if(!p)return 'Choose a spare part.';const cur=(p.erp||'').split(/[,;\s]+/).filter(Boolean);if(cur.indexOf(c.itemCode)<0)cur.push(c.itemCode);p.erp=cur.join(', ');commit();toast('Linked to '+p.name)},{submit:'Link'})}
 
+/* ---------- testing: taken out and returned ---------- */
+function ensureTrials(){if(!Array.isArray(S.trials))S.trials=[];S.parts.forEach(p=>{if(typeof p.chain!=='number')p.chain=0});return false}
+const chainTrials=p=>S.trials.filter(x=>x.partId===p.id&&x.chain===(p.chain||0)).sort((a,b)=>a.out-b.out);
+const trialOpen=p=>chainTrials(p).find(x=>x.result==='out')||null;
+const trialReturned=p=>chainTrials(p).filter(x=>x.result==='returned').length;
+function trialClose(p,tx,used){const cur=chainTrials(p);if(!cur.length)return 0;const n=cur.length;cur.forEach(x=>{x.closedAt=NOW();x.usedTx=tx.id});
+  tx.ref=((tx.ref?tx.ref+' · ':'')+'Used after '+n+' test take-out'+(n>1?'s':'')+(n>1?' ('+(n-1)+' returned)':''));tx.trialN=n;p.chain=(p.chain||0)+1;return n}
+function testingHtml(p){
+  const cur=chainTrials(p),op=trialOpen(p),ret=trialReturned(p),line=x=>`<div class="item"><div class="grow"><div class="t">${fDate(x.out)}${x.end?' to '+fDate(x.end):''} · ${x.result==='out'?'Out for testing':x.result==='returned'?'Returned unused':'Used'}</div><div class="s">${x.machine?esc(x.machine)+' · ':''}${esc(x.by||'')}${x.note?' · '+esc(x.note):''}</div></div></div>`;
+  let h='';
+  if(op)h+=`<div class="alert" style="margin-bottom:8px"><div class="grow"><b>One is out for testing</b> since ${fDate(op.out)}${op.machine?' on '+esc(op.machine):''}.</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-act="trialReturn" data-id="${op.id}">Returned to stores</button><button class="btn sm primary" data-act="trialUse" data-id="${op.id}">Used on machine</button></div></div>`;
+  else if(ret)h+=`<div class="sub" style="margin-bottom:6px"><span class="chip info">Tested ${ret}×</span> Taken out ${ret} time${ret>1?'s':''} and returned unused. Not consumed yet. This marker clears when it is issued to a machine, and the history below is kept.</div>`;
+  if(cur.length)h+=`<div class="row-list">${cur.map(line).join('')}</div>`;
+  const past={};S.trials.filter(x=>x.partId===p.id&&x.chain<(p.chain||0)).forEach(x=>{(past[x.chain]=past[x.chain]||[]).push(x)});
+  const pk=Object.keys(past).sort((a,b)=>b-a);
+  if(pk.length)h+=`<div style="margin-top:10px"><div class="sub"><b>Earlier</b></div>${pk.map(k=>{const xs=past[k].sort((a,b)=>a.out-b.out),u=S.txns.find(t=>t.id===xs[0].usedTx);return `<div class="sub" style="margin:4px 0">Taken out ${xs.length}×, ${xs.filter(x=>x.result==='returned').length} returned unused, then used${u?' on '+esc(u.machine||'a machine')+' ('+fDate(u.t)+')':''}.</div>`}).join('')}</div>`;
+  if(!h)h='<div class="sub">Never taken out for testing.</div>';
+  return h+`<button class="btn sm" data-act="trialOut" data-id="${p.id}" style="margin-top:8px" ${op||p.stock<1?'disabled':''}>Take one out for testing</button>`}
+function trialOutForm(pid){const p=pById(pid),have=k=>p.byLine[k]||0;
+  modal('Take '+p.code+' out for testing',`
+    <div class="field full"><label>Part</label><input value="${esc(p.name)} · ${p.stock} in stock (${esc(locLine(p))})" disabled></div>
+    <div class="field"><label for="f_from">Take from</label><select id="f_from" name="from"><option value="auto">Automatic</option>${locKeys().map(k=>`<option value="${k}">${esc(locName(k))} (${have(k)})</option>`).join('')}</select></div>
+    <div class="field"><label for="f_m">Testing on machine</label><select id="f_m" name="machine"><option value="">Not specified</option>${machOpts('')}</select></div>
+    <div class="field"><label for="f_by">Taken by</label><input id="f_by" name="by" placeholder="Technician"></div>
+    <div class="field"><label for="f_n">Note</label><input id="f_n" name="note" placeholder="Why it is being tested"></div>`,fd=>{
+    if(p.stock<1)return 'None in stock.';const from=fd.get('from');if(from!=='auto'&&have(from)<1)return 'None in '+locName(from)+'.';
+    const m=fd.get('machine'),al=from==='auto'?takeStock(p,1,(mById(m)||{}).line):(p.byLine[from]-=1,p.stock=stockTotal(p),[{loc:from,q:1}]);
+    const tr={id:newId('tt'),partId:p.id,chain:p.chain||0,out:NOW(),by:fd.get('by')||'',machine:m,note:fd.get('note')||'',loc:al[0].loc,result:'out'};S.trials.push(tr);
+    S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Taken for testing',qty:-1,machine:m,ref:'Test take-out #'+chainTrials(p).length,by:tr.by||'Stores',loc:allocText(al)});commit();toast(p.code+' taken out for testing')},{submit:'Take out'})}
+function trialReturnForm(id){const tr=S.trials.find(x=>x.id===id),p=pById(tr.partId);
+  modal('Return '+p.code+' to stores',`<div class="field"><label for="f_into">Put back into</label><select id="f_into" name="into">${locSel(lById(tr.loc)||tr.loc===MAIN?tr.loc:MAIN)}</select></div><div class="field"><label for="f_n">Note</label><input id="f_n" name="note" placeholder="Not needed, wrong size…"></div>`,fd=>{
+    const into=fd.get('into');addStock(p,into,1);tr.result='returned';tr.end=NOW();if(fd.get('note'))tr.note=((tr.note?tr.note+' · ':'')+fd.get('note'));
+    S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Returned from testing',qty:1,machine:tr.machine,ref:'Returned unused (#'+chainTrials(p).length+')',by:'Stores',loc:locShort(into)});commit();toast('Returned. Tested '+trialReturned(p)+' time'+(trialReturned(p)>1?'s':'')+' so far.')},{submit:'Return'})}
+function trialUseForm(id){const tr=S.trials.find(x=>x.id===id),p=pById(tr.partId);
+  modal('Used '+p.code+' on a machine',`<div class="field full"><label for="f_m">Machine</label><select id="f_m" name="machine">${machOpts(tr.machine)}</select></div><div class="field"><label for="f_by">Fitted by</label><input id="f_by" name="by" value="${esc(tr.by||'')}"></div>`,fd=>{
+    const m=fd.get('machine');tr.result='used';tr.end=NOW();tr.machine=m;
+    const tx={id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-1,machine:m,ref:'',by:fd.get('by')||tr.by||'Stores',loc:'from testing',nostock:true};S.txns.push(tx);const n=trialClose(p,tx,tr);commit();toast('Recorded as used on '+m+' after '+n+' test take-out'+(n>1?'s':'')+'. Marker cleared, history kept.')},{submit:'Mark as used'})}
+
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
 lastSnap=snap();
-function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts();return a||b||c}
+function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts(),d=ensureTrials();return a||b||c||d}
 function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;migrate();lastSnap=snap();edits++;save();render();
   if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
 function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
@@ -609,7 +648,7 @@ const machOpts=sel=>S.lines.map(l=>`<optgroup label="${esc(l.name)}">${opts(S.ma
 const partOpts=sel=>opts(S.parts.map(p=>[p.id,p.name+' · '+p.code+' ('+p.stock+' in stock)']),sel);
 function partRows(){return `<div class="field full"><label>Spare parts used (optional, taken from this machine's line first, then main stores)</label><div id="prows"><div class="prow"><select name="pu_part"><option value="">Select part…</option>${partOpts()}</select><input type="number" name="pu_qty" min="1" value="1" aria-label="Quantity"></div></div><button type="button" class="btn sm ghost" data-act="addPartRow" style="align-self:flex-start">${ic('plus')} Add another part</button></div>`}
 function readParts(fd){const ids=fd.getAll('pu_part'),q=fd.getAll('pu_qty');const out=[];ids.forEach((id,i)=>{if(id)out.push({partId:id,qty:Math.max(1,parseInt(q[i])||1)})});return out}
-function applyParts(list,machine,ref,by,when){const warn=[],pref=(mById(machine)||{}).line;list.forEach(u=>{const p=pById(u.partId);if(p.stock<u.qty)warn.push(p.code);const al=takeStock(p,u.qty,pref);S.txns.push({id:newId('tx'),t:when,partId:p.id,type:'Issue to machine',qty:-u.qty,machine,ref,by,loc:allocText(al)})});return warn}
+function applyParts(list,machine,ref,by,when){const warn=[],pref=(mById(machine)||{}).line;list.forEach(u=>{const p=pById(u.partId);if(p.stock<u.qty)warn.push(p.code);const al=takeStock(p,u.qty,pref),itx={id:newId('tx'),t:when,partId:p.id,type:'Issue to machine',qty:-u.qty,machine,ref,by,loc:allocText(al)};S.txns.push(itx);if(!trialOpen(p)&&trialReturned(p)>0)trialClose(p,itx)});return warn}
 
 /* ---------- actions: downtime ---------- */
 function logDowntime(mid,resolveId){
@@ -666,7 +705,7 @@ function stockModal(kind,pid){
       const q=parseInt(fd.get('qty'));if(!(q>0))return 'Enter a quantity.';const from=fd.get('from');
       if(from==='auto'){if(q>p.stock)return 'Only '+p.stock+' in stock.'}else if(q>have(from))return 'Only '+have(from)+' in '+locName(from)+'.';
       const al=from==='auto'?takeStock(p,q,(mById(fd.get('machine'))||{}).line):(p.byLine[from]-=q,p.stock=stockTotal(p),[{loc:from,q}]);
-      S.txns.push({id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-q,machine:fd.get('machine'),ref:fd.get('ref')||'',by:fd.get('by')||'Stores',loc:allocText(al)});
+      const itx={id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-q,machine:fd.get('machine'),ref:fd.get('ref')||'',by:fd.get('by')||'Stores',loc:allocText(al)};S.txns.push(itx);if(!trialOpen(p)&&trialReturned(p)>0)trialClose(p,itx);
       const ev=S.events.find(e=>e.id===fd.get('ref'));if(ev)(ev.parts=ev.parts||[]).push({partId:p.id,qty:q});
       commit();toast(q+' × '+p.code+' issued from '+allocText(al))},{submit:'Issue'});
   if(kind==='receive')modal('Receive '+p.code,`
@@ -728,7 +767,7 @@ function machineForm(id,lineId){
 }
 function deleteMachine(id){const m=mById(id),ev=S.events.filter(e=>e.machine===id).length,as=S.assets.filter(a=>a.machine===id).length;
   confirmBox('Remove '+esc(m.id)+' '+esc(m.name),'This deletes the machine and its '+ev+' downtime record'+(ev===1?'':'s')+'.'+(as?' '+as+' serial-numbered asset'+(as>1?'s':'')+' fitted to it will become unassigned.':'')+' You can undo this.','Remove machine',()=>{
-    S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});(S.costs||[]).forEach(c=>{if(c.machine===id){c.machine='';c.status='new'}});
+    S.events=S.events.filter(e=>e.machine!==id);S.parts.forEach(p=>{p.compat=p.compat.filter(c=>c!==id)});S.assets.forEach(a=>{if(a.machine===id)a.machine=''});S.txns.forEach(t=>{if(t.machine===id)t.machine=''});(S.costs||[]).forEach(c=>{if(c.machine===id){c.machine='';c.status='new'}});(S.trials||[]).forEach(x=>{if(x.machine===id)x.machine=''});
     S.machines=S.machines.filter(x=>x.id!==id);renumberMachines();closeDrawer();commit();toast('Removed machine '+id+'. Remaining codes renumbered.')})}
 function autoCode(cat){const pre={Electrical:'EL',Mechanical:'ME',Pneumatic:'PN',Electronic:'ET',General:'GN'}[cat]||'GN',re=new RegExp('^'+pre+'-(\\d+)$');
   let mx=0;S.parts.forEach(x=>{const m=re.exec(x.code);if(m)mx=Math.max(mx,+m[1])});return pre+'-'+String(mx+1).padStart(4,'0')}
@@ -769,7 +808,7 @@ function deletePart(id){const p=pById(id),as=S.assets.filter(a=>a.part===id).len
   if(po){toast('Cancel or receive its open purchase order first');return}
   const tx=S.txns.filter(t=>t.partId===id).length;
   confirmBox('Delete '+esc(p.code)+' '+esc(p.name),'This deletes the part, its '+tx+' stock movement'+(tx===1?'':'s')+' and its links to machines. Past downtime records stay but will no longer list this part. You can undo this.','Delete part',()=>{
-    S.parts=S.parts.filter(x=>x.id!==id);S.repairs=S.repairs.filter(r=>r.part!==id);S.txns=S.txns.filter(t=>t.partId!==id);S.pos=S.pos.filter(o=>o.part!==id);
+    S.parts=S.parts.filter(x=>x.id!==id);S.trials=(S.trials||[]).filter(x=>x.partId!==id);S.repairs=S.repairs.filter(r=>r.part!==id);S.txns=S.txns.filter(t=>t.partId!==id);S.pos=S.pos.filter(o=>o.part!==id);
     S.events.forEach(e=>{e.parts=(e.parts||[]).filter(u=>u.partId!==id);if(e.blocked===id)delete e.blocked});closeDrawer();commit();toast('Deleted part '+p.code)})}
 const ASSET_ST=['Active on line','In stores','Under repair (local)','Under repair (abroad)','Scrapped'];
 function assetForm(id,partId){
@@ -1103,10 +1142,10 @@ function hsFiltered(){
   return S.txns.filter(t=>{if(t.t<from||t.t>=to)return false;if(ui.hsType&&t.type!==ui.hsType)return false;if(ui.hsMachine&&t.machine!==ui.hsMachine)return false;
     if(!q)return true;const p=pById(t.partId)||{},m=mById(t.machine)||{};return [p.name,p.code,p.pn,t.machine,m.name,t.ref,t.by,t.loc,t.type].join(' ').toLowerCase().indexOf(q)>=0}).sort((a,b)=>b.t-a.t)}
 function hsResults(){
-  const all=hsFiltered(),lim=ui.hsLimit||100,rows=all.slice(0,lim),iss=all.filter(t=>t.type==='Issue to machine').reduce((a,t)=>a-t.qty,0),rec=all.filter(t=>t.qty>0&&t.type!=='Transfer').reduce((a,t)=>a+t.qty,0);
+  const all=hsFiltered(),lim=ui.hsLimit||100,rows=all.slice(0,lim),iss=all.filter(t=>t.type==='Issue to machine').reduce((a,t)=>a-t.qty,0),rec=all.filter(t=>t.qty>0&&t.type!=='Transfer'&&t.type!=='Returned from testing').reduce((a,t)=>a+t.qty,0);
   if(!all.length)return '<div class="empty">No stock movements match. Try All time or clear the filters.</div>';
   return `<div class="sub" style="margin:0 0 8px">${all.length} movement${all.length>1?'s':''} · ${iss} issued to machines · ${rec} received or returned</div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Spare part</th><th>Movement</th><th class="r">Qty</th><th>Machine</th><th>From / to</th><th>Reference</th></tr></thead><tbody>${rows.map(t=>{const p=pById(t.partId),m=mById(t.machine);return `<tr><td class="mono" style="white-space:nowrap">${fDT(t.t)}</td><td>${p?`<button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div>`:'<span class="sub">Deleted part</span>'}</td><td>${esc(t.type)}</td><td class="r mono ${t.type==='Transfer'?'':t.qty<0?'up':'down'}">${t.type==='Transfer'?'⇄ '+t.qty:(t.qty>0?'+':'')+t.qty}</td><td>${m?`<button class="link" data-act="openMachine" data-id="${esc(m.id)}">${esc(m.id)}</button><div class="sub">${esc(m.name)}</div>`:(t.machine?esc(t.machine):'')}</td><td>${esc(t.loc||'')}</td><td>${esc(t.ref||'')}${t.by?`<div class="sub">${esc(t.by)}</div>`:''}</td></tr>`}).join('')}</tbody></table></div></div>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Spare part</th><th>Movement</th><th class="r">Qty</th><th>Machine</th><th>From / to</th><th>Reference</th></tr></thead><tbody>${rows.map(t=>{const p=pById(t.partId),m=mById(t.machine);return `<tr><td class="mono" style="white-space:nowrap">${fDT(t.t)}</td><td>${p?`<button class="link" data-act="openPart" data-id="${p.id}">${esc(p.name)}</button><div class="sub mono">${esc(p.code)}</div>`:'<span class="sub">Deleted part</span>'}</td><td>${esc(t.type)}</td><td class="r mono ${t.type==='Transfer'?'':t.qty<0?'up':'down'}">${t.type==='Transfer'?'⇄ '+t.qty:(t.qty>0?'+':'')+t.qty}${t.nostock?'<div class="sub">already out</div>':''}</td><td>${m?`<button class="link" data-act="openMachine" data-id="${esc(m.id)}">${esc(m.id)}</button><div class="sub">${esc(m.name)}</div>`:(t.machine?esc(t.machine):'')}</td><td>${esc(t.loc||'')}</td><td>${esc(t.ref||'')}${t.by?`<div class="sub">${esc(t.by)}</div>`:''}</td></tr>`}).join('')}</tbody></table></div></div>
   ${all.length>lim?`<div style="text-align:center;margin-top:12px"><button class="btn" data-act="hsMore">Show more (${all.length-lim} left)</button></div>`:''}`}
 function vHistory(){
   const types=Array.from(new Set(S.txns.map(t=>t.type))).sort();
@@ -1130,7 +1169,7 @@ function gauge(p,lg){const s=stock(p),mx=Math.max(p.max||0,p.reorder*1.4,p.stock
   return `<div class="gauge ${lg?'lg':''}" title="Min ${p.min}, reorder ${p.reorder}"><div class="f" style="width:${Math.min(100,p.stock/mx*100)}%;background:${col}"></div><div class="tick" style="left:${p.min/mx*100}%"></div><div class="tick" style="left:${p.reorder/mx*100}%;opacity:.3"></div></div>`}
 function partsFiltered(){const q=ui.partQ.toLowerCase();return S.parts.filter(p=>(!ui.partCat||p.cat===ui.partCat)&&(!ui.partSt||stock(p).k===ui.partSt)&&(!q||(p.name+' '+p.code+' '+p.pn+' '+p.brand).toLowerCase().includes(q))).sort((a,b)=>stock(a).r-stock(b).r||a.name.localeCompare(b.name))}
 function partsResults(){
-  const rows=partsFiltered().map(p=>{const s=stock(p),oo=onOrder(p.id);return `<tr class="click" data-act="openPart" data-id="${p.id}" tabindex="0"><td><div class="name">${esc(p.name)}</div><div class="sub mono">${esc(p.code)} · ${esc(p.pn)} · ${esc(p.brand)}</div></td><td>${esc(p.cat)}${p.serialized?'<div class="sub">Serialized</div>':''}</td><td style="min-width:150px"><div style="display:flex;gap:10px;align-items:center"><span class="num" style="min-width:28px;font-weight:600">${p.stock}</span>${gauge(p)}</div><div class="sub">min ${p.min} · reorder ${p.reorder}${oo?` · <b>+${oo}</b> on order`:''}</div><div class="sub mono">${esc(locLine(p))}</div></td><td>${esc(p.loc)}</td><td class="r mono">${lkr(p.cost)}</td><td>${statusBadge(s.k,s.c)}</td></tr>`}).join('');
+  const rows=partsFiltered().map(p=>{const s=stock(p),oo=onOrder(p.id);return `<tr class="click" data-act="openPart" data-id="${p.id}" tabindex="0"><td><div class="name">${esc(p.name)}</div><div class="sub mono">${esc(p.code)} · ${esc(p.pn)} · ${esc(p.brand)}</div></td><td>${esc(p.cat)}${p.serialized?'<div class="sub">Serialized</div>':''}</td><td style="min-width:150px"><div style="display:flex;gap:10px;align-items:center"><span class="num" style="min-width:28px;font-weight:600">${p.stock}</span>${gauge(p)}</div><div class="sub">min ${p.min} · reorder ${p.reorder}${oo?` · <b>+${oo}</b> on order`:''}</div><div class="sub mono">${esc(locLine(p))}</div>${trialOpen(p)?'<div><span class="chip crit plain" style="font-size:11px;padding:0 7px">Out for testing</span></div>':trialReturned(p)?`<div><span class="chip info plain" style="font-size:11px;padding:0 7px">Tested ${trialReturned(p)}× and returned</span></div>`:''}</td><td>${esc(p.loc)}</td><td class="r mono">${lkr(p.cost)}</td><td>${statusBadge(s.k,s.c)}</td></tr>`}).join('');
   return `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Part</th><th>Category</th><th>Stock</th><th>Location</th><th class="r">Unit value</th><th>Status</th></tr></thead><tbody>${rows||'<tr><td colspan="6"><div class="empty">No parts match.</div></td></tr>'}</tbody></table></div></div>`;
 }
 function vParts(){
@@ -1195,6 +1234,7 @@ function partDrawer(id){return ()=>{const p=pById(id);if(!p)return '';const s=st
   return `<div class="drawer-h"><div><div class="mono sub">${esc(p.code)} · ${esc(p.pn)}</div><h2>${esc(p.name)}</h2><div style="margin-top:6px;display:flex;gap:6px">${statusBadge(s.k,s.c)}${p.serialized?statusBadge('Serialized','info'):''}${p.repairable?statusBadge('Repairable',''):''}</div></div><button class="btn sm x" data-act="closeDrawer" aria-label="Close">${ic('x')}</button></div>
   <div class="sec"><div style="display:flex;align-items:baseline;gap:8px"><span class="kpi"><span class="v num" style="font-size:46px">${p.stock}</span></span><span class="sub">in stock · min ${p.min} · reorder ${p.reorder} · max ${p.max}</span></div>${gauge(p,true)}
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn primary" data-act="stockIssue" data-id="${id}">Issue to machine</button><button class="btn" data-act="stockReceive" data-id="${id}">Receive</button><button class="btn" data-act="stockTransfer" data-id="${id}">Move</button><button class="btn" data-act="stockAdjust" data-id="${id}">Adjust count</button><button class="btn" data-act="newPO" data-id="${id}">Raise PO</button></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm ghost" data-act="editPart" data-id="${id}">Edit part</button><button class="btn sm ghost danger" data-act="deletePart" data-id="${id}">Delete part</button></div></div>
+  <div class="sec"><h4>Testing (taken out and returned)</h4>${testingHtml(p)}</div>
   <div class="sec"><h4>Stock by location</h4>${locKeys().map(k=>{const q=p.byLine[k]||0,mx=Math.max(p.stock,1);return `<div class="locbar"><span class="n">${esc(locName(k))}</span><div class="gauge"><div class="f" style="width:${q/mx*100}%;background:var(--accent)"></div></div><span class="num" style="min-width:28px;text-align:right;font-weight:600">${q}</span></div>`}).join('')}</div>
   <div class="sec"><h4>Installed on lines</h4>${S.lines.map(l=>{const f=fittedOn(p,l.id),mx=Math.max(fittedTotal(p),1);return `<div class="locbar"><span class="n">${esc(l.name)}</span><div class="gauge"><div class="f" style="width:${f.n/mx*100}%;background:var(--c2)"></div></div><span class="num" style="min-width:28px;text-align:right;font-weight:600">${f.n}</span></div>`}).join('')}<div class="sub">${fittedTotal(p)} running in total${S.assets.some(a=>a.part===p.id&&a.status==='Active on line')?', including serial-numbered units fitted to machines':''}. Change the numbers with Edit part.</div></div>
   <div class="sec"><h4>Details</h4><div class="facts"><div><span>Brand</span><b>${esc(p.brand)}</b></div><div><span>Category</span><b>${esc(p.cat)}</b></div><div><span>Location</span><b>${esc(p.loc)}</b></div><div><span>Unit value</span><b class="num">${lkr(p.cost)}</b></div><div><span>Supplier</span><b>${esc(p.supplier)}</b></div><div><span>Lead time</span><b class="num">${p.lead} days</b></div></div></div>
@@ -1264,6 +1304,7 @@ function tables(){
   return {
    'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k))).concat(S.lines.map(l=>'Installed on '+l.name))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)).concat(S.lines.map(l=>fittedOn(p,l.id).n)))),
    'Spare costs':[['Date','MRN','Dept code','Department','Item code','Description','Qty','Unit cost (LKR)','Cost (LKR)','Status','Machine','Line','Linked part']].concat(S.costs.map(c=>{const e=csEff(c),pp=costPart(c),ln=csLine(c);return [dayKey(c.t),c.mrn,c.dpt,c.dptName,c.itemCode,c.desc,(c.type==='return'?-1:1)*c.qty,c.unit,c.value,{new:'To assign',machine:'On machine',line:'Line common',auto:'Line common (auto)',removed:'Removed'}[e],e==='machine'?c.machine:'',ln?locName(ln):'',pp?pp.name:'']})),
+   'Testing take-outs':[['Part','Code','Taken out','Returned or used','Result','Machine','By','Note','Round']].concat(S.trials.map(x=>{const p=pById(x.partId)||{};return [p.name||'',p.code||'',dayKey(x.out),x.end?dayKey(x.end):'',{out:'Still out',returned:'Returned unused',used:'Used'}[x.result],x.machine||'',x.by||'',x.note||'',x.chain+1]})),
    'Machines':[['Code','Name','Serial number','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,m.serial||'',ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
@@ -1379,6 +1420,7 @@ const ACT={
  closeDrawer,closeModal,
  openMachine:b=>{closeModal();openDrawer(machineDrawer(b.dataset.id))},
  openPart:b=>openDrawer(partDrawer(b.dataset.id)),
+ trialOut:b=>trialOutForm(b.dataset.id),trialReturn:b=>trialReturnForm(b.dataset.id),trialUse:b=>trialUseForm(b.dataset.id),
  csImport:()=>{const f=$('#costFile');if(f)f.click()},csDepts:()=>costDeptForm(),csLink:b=>csLinkForm(b.dataset.id),csMore:()=>{ui.csLimit=(ui.csLimit||100)+100;csRefresh()},
  csFlag:b=>{ui.csFlag=ui.csFlag===b.dataset.v?'':b.dataset.v;if(ui.csFlag&&ui.csStatus==='new'){}csRefresh()},csClearSel:()=>{ui.csSel={};csRefresh()},
  csBulkApply:()=>{const v=($('#csBulk')||{}).value,ids=Object.keys(ui.csSel||{}).filter(k=>ui.csSel[k]);if(!v){toast('Choose where to assign the selected lines');return}assignCost(ids,v)},
