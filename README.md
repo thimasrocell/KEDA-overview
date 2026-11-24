@@ -59,3 +59,5 @@ Every push to `main` redeploys automatically. The app works the same on GitHub P
 
 ## Line performance (shift reports)
 Paste the production message posted after each shift (e.g. "Keda 02 - 1643 sqm", yields, "Stoppages - (...)"). It runs in the browser only, without AI. Stoppages are sorted into Breakdown, Power or utility, Changeover and Break or sample. Availability = run time / scheduled shift time; "excluding changeovers" removes changeover time from the scheduled time. These are kept separate from machine downtime events.
+
+Lines can have other names (Sorting Line = Keda 01, Keda 03 = BMR) set in Edit line; shift reports using those names go to the right line. Breakdown stoppages can be assigned to a machine; unassigned after 30 days they count against the whole line.

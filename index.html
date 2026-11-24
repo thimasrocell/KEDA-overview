@@ -282,7 +282,7 @@ let uid=Date.now()%100000;
 const newId=p=>p+'-'+(++uid).toString(36);
 
 /* ---------- seed data (based on the original app's lines, machines, parts and repairs) ---------- */
-const LINES=[{id:'L1',name:'Sorting Line',code:'SL'},{id:'L2',name:'Keda 02',code:'K2'},{id:'L3',name:'Keda 03 (BMR)',code:'K3'}];
+const LINES=[{id:'L1',name:'Sorting Line',code:'SL',aliases:'Keda 01, Sorting'},{id:'L2',name:'Keda 02',code:'K2',aliases:''},{id:'L3',name:'Keda 03',code:'K3',aliases:'BMR'}];
 const UNPLANNED=['Electrical fault','Mechanical failure','Sensor / instrumentation','Jam / blockage','Pneumatic / vacuum','Drive / inverter trip','Belt / roller wear','Operator / setup'];
 const PLANNED=['Preventive maintenance','Lubrication round','Changeover / size change','Inspection'];
 const CAUSE_CAT={'Electrical fault':'Electrical','Sensor / instrumentation':'Electrical','Drive / inverter trip':'Electrical','Mechanical failure':'Mechanical','Belt / roller wear':'Mechanical','Pneumatic / vacuum':'Pneumatic'};
@@ -672,9 +672,14 @@ function chatImportForm(){
 
 /* ---------- line shift reports: production, stoppages, changeovers ---------- */
 const SCAT=['Breakdown','Power or utility','Changeover','Break or sample'];
-function ensureReports(){if(!Array.isArray(S.shiftReports))S.shiftReports=[];return false}
+function ensureReports(){let ch=false;if(!Array.isArray(S.shiftReports))S.shiftReports=[];
+  S.lines.forEach(l=>{if(l.aliases===undefined){ch=true;const n=normName(l.name);l.aliases=n==='sortingline'?'Keda 01, Sorting':(n.indexOf('keda03')===0?'BMR':'');if(n==='keda03bmr')l.name='Keda 03'}});return ch}
+const ALIAS_AUTO=30;
+function lineAliases(l){return String(l.aliases||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean)}
+const stopAge=r=>Math.floor((NOW()-Date.parse(r.date+'T00:00:00'))/DAY);
+function stopState(r,s){if(s.cat!=='Breakdown')return 'n/a';if(s.mach==='line')return 'line';if(s.mach&&mById(s.mach))return 'machine';return stopAge(r)>=ALIAS_AUTO?'auto':'pending'}
 const normName=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-function matchLine(name){const n=normName(name);if(!n)return null;return S.lines.find(l=>normName(l.name)===n||normName(l.code)===n)||S.lines.find(l=>normName(l.name).indexOf(n)===0||n.indexOf(normName(l.name))===0)||null}
+function matchLine(name){const n=normName(name);if(!n)return null;return S.lines.find(l=>normName(l.name)===n||normName(l.code)===n||lineAliases(l).some(a=>normName(a)===n))||S.lines.find(l=>normName(l.name).indexOf(n)===0||n.indexOf(normName(l.name))===0)||null}
 function stopCat(t){if(/(tea|lunch|dinner|meal|break)\s*(time)?$|\btea time\b|^samples?\b|\bsamples?$/i.test(t))return 'Break or sample';
   if(/change\s*-?over|code change|line chang|size (adjust|change)|tile size|format change|model change/i.test(t))return 'Changeover';
   if(/power\s*(cut|failure|trip|outage)|\bgenerator\b|no power/i.test(t))return 'Power or utility';return 'Breakdown'}
@@ -731,20 +736,26 @@ function lpImportForm(){
     <div class="field full" id="lpOut"></div>`,fd=>{
     if(!lpCands.length)return 'Press Read reports first.';const made=[],newLines={};let bad='';
     lpCands.forEach((b,i)=>{if(!fd.get('rk_'+i))return;let ln=fd.get('rl_'+i)||'',date=fd.get('rd_'+i),sid=fd.get('rs_'+i);if(!ln||!date||!shById(sid)){bad='Choose a line, date and shift for every ticked report.';return}
-      if(ln.indexOf('__new:')===0){const nm=ln.slice(6);if(!newLines[nm]){let code=(nm.replace(/[^A-Za-z]/g,'').slice(0,1)+(nm.match(/\d+/)||[''])[0].replace(/^0+/,'')).toUpperCase()||'LN';let c=code,k=2;while(S.lines.some(x=>x.code.toUpperCase()===c)||Object.values(newLines).some(x=>x.code===c))c=code+(k++);let nid='L'+(S.lines.length+Object.keys(newLines).length+1);while(lById(nid)||Object.values(newLines).some(x=>x.id===nid))nid+='x';newLines[nm]={id:nid,name:nm,code:c}}ln=newLines[nm].id}
+      if(ln.indexOf('__new:')===0){const nm=ln.slice(6);if(!newLines[nm]){let code=(nm.replace(/[^A-Za-z]/g,'').slice(0,1)+(nm.match(/\d+/)||[''])[0].replace(/^0+/,'')).toUpperCase()||'LN';let c=code,k=2;while(S.lines.some(x=>x.code.toUpperCase()===c)||Object.values(newLines).some(x=>x.code===c))c=code+(k++);let nid='L'+(S.lines.length+Object.keys(newLines).length+1);while(lById(nid)||Object.values(newLines).some(x=>x.id===nid))nid+='x';newLines[nm]={id:nid,name:nm,code:c,aliases:''}}ln=newLines[nm].id}
       if(S.shiftReports.some(r=>r.line===ln&&r.date===date&&r.shift===sid)||made.some(r=>r.line===ln&&r.date===date&&r.shift===sid)){bad='A report for that line, date and shift already exists. Change the shift or untick it.';return}
       const stops=[];(b.stops||[]).forEach((s,j)=>{if(!fd.get('sk_'+i+'_'+j))return;const mn=fd.get('sm_'+i+'_'+j);stops.push({text:(fd.get('st_'+i+'_'+j)||s.text).trim(),min:mn===''||mn==null?0:Math.max(0,parseInt(mn)||0),cat:fd.get('sc_'+i+'_'+j)||s.cat})});
       made.push({id:newId('sr'),line:ln,date,shift:sid,posted:b.posted||null,sqm:Math.max(0,parseInt(fd.get('rq_'+i))||0),prod:b.prod,stops,src:'chat',at:NOW()})});
     if(bad)return bad;if(!made.length)return 'Tick at least one report.';
     Object.values(newLines).forEach(l=>S.lines.push(l));made.forEach(r=>S.shiftReports.push(r));lpCands=[];commit();toast('Imported '+made.length+' line report'+(made.length>1?'s':'')+(Object.keys(newLines).length?' and added '+Object.keys(newLines).length+' new line'+(Object.keys(newLines).length>1?'s':''):''))},{submit:'Import ticked reports'});lpCands=[]}
 function lpStats(rs){
-  const o={n:rs.length,sched:0,bd:0,pw:0,co:0,br:0,sqm:0,ys:0,yw:0,nb:0,nco:0,items:{}};
+  const o={mach:{},line:0,pend:0,n:rs.length,sched:0,bd:0,pw:0,co:0,br:0,sqm:0,ys:0,yw:0,nb:0,nco:0,items:{}};
   rs.forEach(r=>{const sh=shById(r.shift);o.sched+=sh?shLen(sh):480;o.sqm+=r.sqm||0;(r.prod||[]).forEach(p=>{const w=p.sqm||0;if(w){o.ys+=p.yield*w;o.yw+=w}});
-    (r.stops||[]).forEach(s=>{const m=s.min||0;if(s.cat==='Breakdown'){o.bd+=m;o.nb++}else if(s.cat==='Power or utility')o.pw+=m;else if(s.cat==='Changeover'){o.co+=m;o.nco++}else o.br+=m;
+    (r.stops||[]).forEach(s=>{const m=s.min||0;if(s.cat==='Breakdown'){o.bd+=m;o.nb++;const st=stopState(r,s);if(st==='machine')o.mach[s.mach]=(o.mach[s.mach]||0)+m;else if(st==='pending')o.pend+=m;else o.line+=m}else if(s.cat==='Power or utility')o.pw+=m;else if(s.cat==='Changeover'){o.co+=m;o.nco++}else o.br+=m;
       if(m>0||s.cat!=='Break or sample'){const k=normName(s.text),it=o.items[k]||(o.items[k]={text:s.text,cat:s.cat,n:0,min:0});it.n++;it.min+=m}})});
   o.lost=o.bd+o.pw+o.co+o.br;o.avail=o.sched?1-o.lost/o.sched:null;o.availX=o.sched-o.co>0?1-(o.bd+o.pw+o.br)/(o.sched-o.co):null;o.run=o.sched-o.lost;o.yieldAvg=o.yw?o.ys/o.yw:null;return o}
 const catChip=c=>`<span class="chip ${c==='Breakdown'?'crit':c==='Changeover'?'info':'warn'} plain" style="font-size:11px;padding:0 7px">${esc(c)}</span>`;
 function lpPeriodReports(){const B=boundsFor(ui.lpRange,ui.lpMonth,ui.lpYear),all=ui.lpRange==='all';return S.shiftReports.filter(r=>{const t=Date.parse(r.date+'T00:00:00');return (all||(t>=B.from&&t<B.to))&&(!ui.lpLine||r.line===ui.lpLine)})}
+function machTbl(l,st){const rows=Object.keys(st.mach).map(id=>[(mById(id)||{}).code+' '+((mById(id)||{}).name||''),st.mach[id]]);
+  if(!rows.length&&!st.line&&!st.pend)return '';
+  return `<div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Breakdown time by machine</th><th class="r">Minutes</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td class="r mono">${fDur(r[1])}</td></tr>`).join('')}${st.line?`<tr><td>Whole line (common)</td><td class="r mono">${fDur(st.line)}</td></tr>`:''}${st.pend?`<tr><td><span class="chip warn plain">Waiting for you to pick a machine</span></td><td class="r mono">${fDur(st.pend)}</td></tr>`:''}</tbody></table></div></div>`}
+function assignCard(l,r2){const items=[];r2.forEach(r=>(r.stops||[]).forEach((s,i)=>{if(stopState(r,s)==='pending')items.push([r,s,i])}));
+  if(!items.length)return '';const ms=S.machines.filter(m=>m.line===l.id);
+  return `<div class="card" style="margin-top:12px"><div class="card-b"><b>Which machine was it?</b> <span class="sub">Breakdowns not assigned within ${ALIAS_AUTO} days are counted against the whole line automatically.</span></div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Stoppage</th><th class="r">Min</th><th>Machine</th><th>Auto in</th></tr></thead><tbody>${items.slice(0,40).map(([r,s,i])=>`<tr><td class="mono">${esc(r.date)}</td><td>${esc(s.text)}</td><td class="r mono">${s.min||0}</td><td><select aria-label="Machine" data-lpm="${r.id}:${i}"><option value="">Choose…</option>${ms.map(m=>`<option value="${m.id}">${esc(m.code+' '+m.name)}</option>`).join('')}<option value="line">Whole line (common)</option></select></td><td class="mono">${Math.max(0,ALIAS_AUTO-stopAge(r))} days</td></tr>`).join('')}</tbody></table></div></div>`}
 function lpResults(){
   const rs=lpPeriodReports();
   if(!S.shiftReports.length)return `<div class="card"><div class="card-b"><h3 style="margin-bottom:6px">Bring in your shift reports</h3><p style="color:var(--muted);margin-top:0">Click <b>Paste shift reports</b> and paste the messages your team posts after each shift (production per line and the stoppages list). The app separates breakdowns, power cuts, changeovers and breaks, and works out line availability with and without changeovers.</p></div></div>`;
@@ -757,7 +768,7 @@ function lpResults(){
   const recent=rs.slice().sort((a,b)=>b.date.localeCompare(a.date)||String(a.shift).localeCompare(b.shift)).slice(0,25);
   return `<div class="sub" style="margin:0 0 8px">Availability = run time ÷ scheduled shift time. "Excluding changeovers" removes changeover time from the scheduled time, so it shows how reliable the line is when it is meant to be running.</div>
   ${!ui.lpLine&&lines.length>1?`<h3 style="margin:14px 0 8px">All lines together</h3>${kp(all)}`:''}
-  ${lines.map(l=>{const r2=rs.filter(r=>r.line===l.id),st=lpStats(r2);return `<h3 style="margin:22px 0 8px">${esc(l.name)}</h3>${kp(st)}${shiftTbl(r2)}${items(st)}`}).join('')}
+  ${lines.map(l=>{const r2=rs.filter(r=>r.line===l.id),st=lpStats(r2);return `<h3 style="margin:22px 0 8px">${esc(l.name)}</h3>${kp(st)}${machTbl(l,st)}${assignCard(l,r2)}${shiftTbl(r2)}${items(st)}`}).join('')}
   <h3 style="margin:22px 0 8px">Recent reports</h3><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Shift</th><th>Line</th><th class="r">sqm</th><th class="r">Breakdown</th><th class="r">Changeover</th><th></th></tr></thead><tbody>${recent.map(r=>{const s=lpStats([r]);return `<tr><td class="mono">${esc(r.date)}</td><td>${esc(shName(r.shift))}</td><td>${esc((lById(r.line)||{}).name||'')}</td><td class="r mono">${r.sqm}</td><td class="r mono">${fDur(s.bd+s.pw)}</td><td class="r mono">${fDur(s.co)}</td><td class="r"><button class="btn sm ghost danger" data-act="lpDelete" data-id="${r.id}">Delete</button></td></tr>`}).join('')}</tbody></table></div></div>`}
 function vLinePerf(){
   return `<div class="filters">${periodPicker('lp')}
@@ -939,11 +950,12 @@ function lineForm(id){
   const l=id?lById(id):null;
   modal(l?'Edit production line':'Add production line',`
     <div class="field"><label for="f_n">Name</label><input id="f_n" name="name" value="${esc(l?l.name:'')}" required placeholder="Keda 04"></div>
-    <div class="field"><label for="f_c">Short code</label><input id="f_c" name="code" value="${esc(l?l.code:'')}" required maxlength="8" placeholder="K4"></div>`,fd=>{
+    <div class="field"><label for="f_c">Short code</label><input id="f_c" name="code" value="${esc(l?l.code:'')}" required maxlength="8" placeholder="K4"></div>
+    <div class="field full"><label for="f_a">Other names people use (comma separated)</label><input id="f_a" name="aliases" value="${esc(l?l.aliases||'':'')}" placeholder="Keda 01, BMR"><div class="sub">Shift reports that use these names are matched to this line.</div></div>`,fd=>{
     const name=fd.get('name').trim(),code=fd.get('code').trim().toUpperCase();
     if(!code)return 'Enter a short code.';if(S.lines.some(x=>x!==l&&x.code.toUpperCase()===code))return 'Another line already uses that short code.';
-    if(l){l.name=name;l.code=code;renumberMachines();commit();toast('Line updated. Machine codes follow the line code.');return}
-    let nid='L'+(S.lines.length+1);while(lById(nid))nid+='x';S.lines.push({id:nid,name,code});commit();toast('Line added')},{submit:l?'Save':'Add line'});
+    const aliases=(fd.get('aliases')||'').trim();if(l){l.name=name;l.code=code;l.aliases=aliases;renumberMachines();commit();toast('Line updated. Machine codes follow the line code.');return}
+    let nid='L'+(S.lines.length+1);while(lById(nid))nid+='x';S.lines.push({id:nid,name,code,aliases});commit();toast('Line added')},{submit:l?'Save':'Add line'});
 }
 function deleteLine(id){const l=lById(id),n=S.machines.filter(m=>m.line===id).length;
   if(n){toast('Move or remove the '+n+' machine'+(n>1?'s':'')+' on '+l.name+' first');return}
@@ -1679,7 +1691,7 @@ document.addEventListener('change',e=>{const d=e.target.dataset||{};
   if(d.cs){assignCost([d.cs],e.target.value);return}
   if(d.csel){ui.csSel=ui.csSel||{};ui.csSel[d.csel]=e.target.checked;csRefresh();return}
   if(e.target.hasAttribute('data-csall')){ui.csSel=ui.csSel||{};csFiltered().slice(0,ui.csLimit||100).forEach(c=>{ui.csSel[c.id]=e.target.checked});csRefresh();return}
-  if(e.target.id==='logoFile'){setLogo(e.target.files[0]);return}if(e.target.type==='search')return;onFilter(e)});
+  if(e.target.dataset&&e.target.dataset.lpm){const [rid,i]=e.target.dataset.lpm.split(':'),r=S.shiftReports.find(x=>x.id===rid);if(r&&r.stops[+i]&&e.target.value){r.stops[+i].mach=e.target.value;commit();toast('Assigned')}return}if(e.target.id==='logoFile'){setLogo(e.target.files[0]);return}if(e.target.type==='search')return;onFilter(e)});
 setInterval(()=>{if(openEvents().length&&!$('#modalLayer').classList.contains('open')&&ui.view!=='settings'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT')render()},60000);
 
 const h=(location.hash||'').slice(1);if(VIEWS[h])ui.view=h;
