@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"></head><body><title>Squaring Section</title>
+<title>Squaring Section</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -393,7 +393,7 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtShift:'',csQ:'',csStatus:'new',csDpt:'',csFlag:'',csSel:{},csRange:'all',csMonth:String(new Date().getMonth()),csYear:new Date().getFullYear(),csLimit:0,hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',lpLine:'',lpRange:'tm',lpMonth:String(new Date().getMonth()),lpYear:new Date().getFullYear(),dtShift:'',csQ:'',csStatus:'new',csDpt:'',csFlag:'',csSel:{},csRange:'all',csMonth:String(new Date().getMonth()),csYear:new Date().getFullYear(),csLimit:0,hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
 /* ---------- stock by location and machine numbering ---------- */
 const MAIN='main';
@@ -670,11 +670,106 @@ function chatImportForm(){
     made.forEach(e=>S.events.push(e));chatCands=[];commit();toast('Imported '+made.length+' downtime record'+(made.length>1?'s':''))},{submit:'Import ticked rows'});
   chatCands=[]}
 
+/* ---------- line shift reports: production, stoppages, changeovers ---------- */
+const SCAT=['Breakdown','Power or utility','Changeover','Break or sample'];
+function ensureReports(){if(!Array.isArray(S.shiftReports))S.shiftReports=[];return false}
+const normName=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function matchLine(name){const n=normName(name);if(!n)return null;return S.lines.find(l=>normName(l.name)===n||normName(l.code)===n)||S.lines.find(l=>normName(l.name).indexOf(n)===0||n.indexOf(normName(l.name))===0)||null}
+function stopCat(t){if(/(tea|lunch|dinner|meal|break)\s*(time)?$|\btea time\b|^samples?\b|\bsamples?$/i.test(t))return 'Break or sample';
+  if(/change\s*-?over|code change|line chang|size (adjust|change)|tile size|format change|model change/i.test(t))return 'Changeover';
+  if(/power\s*(cut|failure|trip|outage)|\bgenerator\b|no power/i.test(t))return 'Power or utility';return 'Breakdown'}
+function splitTop(s){const out=[];let d=0,cur='';for(const ch of s){if(ch==='(')d++;if(ch===')')d=Math.max(0,d-1);if(ch===','&&d===0){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out.map(x=>x.trim()).filter(Boolean)}
+function parseStops(txt){return splitTop(txt).map(item=>{const m=/(\d+(?:\.\d+)?)\s*(?:min|mins|minutes)\b/i.exec(item),h=/(\d+(?:\.\d+)?)\s*(?:hr|hrs|hours?)\b/i.exec(item);
+    let min=m?Math.round(+m[1]):(h?Math.round(+h[1]*60):null);const text=item.replace(/\s*[-–]\s*(?:\d+(?:\.\d+)?\s*)?(?:min|mins|minutes|hrs?|hours?)\b\.?/i,'').replace(/^[\s\-–]+|[\s\-–]+$/g,'').trim();
+    const until=/(?:until|untill|till|upto|up to)\s*(\d{1,2})[.:](\d{2})\s*([ap])?\.?m?/i.exec(item);
+    return {text:text||item,min,cat:stopCat(text||item),until:until?until[0]:''}})}
+function parseLineReports(text,o){
+  const msgs=chatMessages(text,o.dmy),out=[];
+  msgs.forEach(msg=>{const ps=o.shift==='auto'?chatPostShift(msg.t):null,sid=o.shift==='auto'?(ps?ps.id:(S.shifts[0]||{}).id):o.shift,date=ps?ps.date:(msg.t?dayKey(msg.t):o.date);
+    let blk=null,collecting=null;const L=msg.lines.join('\n').split('\n');
+    const flush=()=>{if(collecting!==null&&blk){blk.stops=blk.stops.concat(parseStops(collecting.replace(/\)\s*$/,'')));collecting=null}};
+    L.forEach(raw=>{const line=raw.trim();
+      if(collecting!==null){if(!line){flush();return}collecting+=' '+line;if(/\)\s*$/.test(line))flush();return}
+      if(!line)return;
+      let m=/^(.+?)\s*[-–]\s*([\d.,]+)\s*sqm\s*$/i.exec(line);
+      if(m&&!/y[ie]+ld/i.test(line)){blk={name:m[1].trim(),sqm:Math.round(parseFloat(m[2].replace(/,/g,''))||0),sid,date,prod:[],stops:[],posted:msg.t};out.push(blk);return}
+      if(!blk)return;
+      m=/^(.+?)\s+y[ie]+ld\s*[-–:]\s*(\d+(?:\.\d+)?)\s*%\s*(?:\(\s*([\d.,]*)\s*sqm\s*\)?)?/i.exec(line);
+      if(m){blk.prod.push({sku:m[1].trim(),yield:+m[2],sqm:m[3]?Math.round(parseFloat(m[3].replace(/,/g,''))||0):null});return}
+      m=/^(N\/D|C\/D)\s*[-–:]\s*(\d+(?:\.\d+)?)\s*%/i.exec(line);if(m&&blk.prod.length){blk.prod[blk.prod.length-1][m[1].toUpperCase()==='N/D'?'nd':'cd']=+m[2];return}
+      m=/^stoppages?\s*[-–:]?\s*\(?(.*)$/i.exec(line);if(m){collecting=m[1];if(/\)\s*$/.test(m[1])||!m[1])flush();return}
+    });flush()});
+  out.forEach(b=>{const l=matchLine(b.name);b.line=l?l.id:'';b.dup=!!(l&&S.shiftReports.some(r=>r.line===l.id&&r.date===b.date&&r.shift===b.sid));
+    const ysq=b.prod.filter(p=>p.sqm);b.yieldAvg=ysq.length?ysq.reduce((a,p)=>a+p.yield*p.sqm,0)/ysq.reduce((a,p)=>a+p.sqm,0):(b.prod.length?b.prod.reduce((a,p)=>a+p.yield,0)/b.prod.length:null)});
+  return out}
+let lpCands=[];
+function lpRowsHtml(){
+  return lpCands.map((b,i)=>`<div class="card" style="margin-bottom:10px"><div class="card-b">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <label style="display:flex;align-items:center;gap:6px"><input type="checkbox" name="rk_${i}" ${b.dup?'':'checked'}> <b>Import</b></label>
+      <div class="field" style="min-width:160px"><label for="rl_${i}">Line</label><select id="rl_${i}" name="rl_${i}"><option value="">Choose…</option>${S.lines.map(l=>`<option value="${l.id}"${l.id===b.line?' selected':''}>${esc(l.name)}</option>`).join('')}<option value="__new:${esc(b.name)}"${!b.line?' selected':''}>Add new line "${esc(b.name)}"</option></select></div>
+      <div class="field"><label for="rd_${i}">Date</label><input id="rd_${i}" type="date" name="rd_${i}" value="${b.date}"></div>
+      <div class="field"><label for="rs_${i}">Shift</label><select id="rs_${i}" name="rs_${i}">${S.shifts.map(x=>`<option value="${x.id}"${x.id===b.sid?' selected':''}>${esc(shName(x.id))}</option>`).join('')}</select></div>
+      <div class="field"><label for="rq_${i}">Production (sqm)</label><input id="rq_${i}" type="number" min="0" name="rq_${i}" value="${b.sqm}" style="width:100px"></div></div>
+    ${b.dup?'<div class="sub">A report for this line, date and shift is already in the app, so it is unticked.</div>':''}
+    ${b.prod.length?`<div class="sub" style="margin-top:6px">${b.prod.map(p=>esc(p.sku)+' '+p.yield+'%'+(p.sqm?' ('+p.sqm+' sqm)':'')).join(' · ')}</div>`:''}
+    ${b.stops.length?`<table style="margin-top:8px"><thead><tr><th></th><th>Stoppage</th><th class="r">Minutes</th><th>Counts as</th></tr></thead><tbody>${b.stops.map((s,j)=>{const need=s.min==null&&s.cat!=='Break or sample';return `<tr><td><input type="checkbox" name="sk_${i}_${j}" ${need?'':'checked'} aria-label="Include"></td><td><input name="st_${i}_${j}" value="${esc(s.text)}" style="min-width:200px">${s.until?`<div class="sub">${esc(s.until)}: work out the minutes</div>`:''}</td><td class="r"><input type="number" min="0" name="sm_${i}_${j}" value="${s.min==null?'':s.min}" style="width:78px;${need?'border-color:var(--warn)':''}" placeholder="${need?'needed':''}"></td><td><select name="sc_${i}_${j}">${opts(SCAT,s.cat)}</select></td></tr>`}).join('')}</tbody></table>`:'<div class="sub" style="margin-top:6px">No stoppages listed.</div>'}
+  </div></div>`).join('')}
+function lpReadNow(){
+  const f=$('#modalLayer form')||document,txt=($('#f_lp',f)||{}).value||'',out=$('#lpOut',f);if(!out)return;
+  if(!txt.trim()){out.innerHTML='<div class="sub">Paste the report text first.</div>';return}
+  lpCands=parseLineReports(txt,{dmy:$('#f_dmy',f).value==='dmy',shift:$('#f_ds',f).value,date:$('#f_dd',f).value||dayKey(NOW())});
+  out.innerHTML=lpCands.length?`<div class="sub" style="margin:6px 0">Found ${lpCands.length} line report${lpCands.length>1?'s':''}. Check the line, shift and minutes, then import. Rows with a missing time are unticked until you fill it in.</div>${lpRowsHtml()}`:'<div class="sub">No line reports found. Each report should start like "Keda 02 - 1643 sqm" and may include a "Stoppages - ( ... )" list.</div>'}
+function lpImportForm(){
+  modal('Paste line shift reports',`
+    <div class="field full"><div class="sub">Runs only in your browser, without AI. The pasted text is not saved. Only the rows you import are kept.</div></div>
+    <div class="field full"><label for="f_lp">Paste the report messages</label><textarea id="f_lp" rows="8" placeholder="Keda 02 - 1643 sqm&#10;...&#10;Stoppages - ( Code Change - 25 Min, Tea Time )"></textarea></div>
+    <div class="field"><label for="f_dmy">Dates in the chat are</label><select id="f_dmy"><option value="dmy">Day / month / year</option><option value="mdy">Month / day / year</option></select></div>
+    <div class="field"><label for="f_ds">Shift for each message</label><select id="f_ds"><option value="auto">Work it out from the time posted</option>${S.shifts.map(x=>`<option value="${x.id}">Always ${esc(shName(x.id))}</option>`).join('')}</select></div>
+    <div class="field"><label for="f_dd">Date if the text has none</label><input id="f_dd" type="date" value="${dayKey(NOW())}"></div>
+    <div class="field" style="align-self:end"><button type="button" class="btn primary" data-act="lpRead">Read reports</button></div>
+    <div class="field full" id="lpOut"></div>`,fd=>{
+    if(!lpCands.length)return 'Press Read reports first.';const made=[],newLines={};let bad='';
+    lpCands.forEach((b,i)=>{if(!fd.get('rk_'+i))return;let ln=fd.get('rl_'+i)||'',date=fd.get('rd_'+i),sid=fd.get('rs_'+i);if(!ln||!date||!shById(sid)){bad='Choose a line, date and shift for every ticked report.';return}
+      if(ln.indexOf('__new:')===0){const nm=ln.slice(6);if(!newLines[nm]){let code=(nm.replace(/[^A-Za-z]/g,'').slice(0,1)+(nm.match(/\d+/)||[''])[0].replace(/^0+/,'')).toUpperCase()||'LN';let c=code,k=2;while(S.lines.some(x=>x.code.toUpperCase()===c)||Object.values(newLines).some(x=>x.code===c))c=code+(k++);let nid='L'+(S.lines.length+Object.keys(newLines).length+1);while(lById(nid)||Object.values(newLines).some(x=>x.id===nid))nid+='x';newLines[nm]={id:nid,name:nm,code:c}}ln=newLines[nm].id}
+      if(S.shiftReports.some(r=>r.line===ln&&r.date===date&&r.shift===sid)||made.some(r=>r.line===ln&&r.date===date&&r.shift===sid)){bad='A report for that line, date and shift already exists. Change the shift or untick it.';return}
+      const stops=[];(b.stops||[]).forEach((s,j)=>{if(!fd.get('sk_'+i+'_'+j))return;const mn=fd.get('sm_'+i+'_'+j);stops.push({text:(fd.get('st_'+i+'_'+j)||s.text).trim(),min:mn===''||mn==null?0:Math.max(0,parseInt(mn)||0),cat:fd.get('sc_'+i+'_'+j)||s.cat})});
+      made.push({id:newId('sr'),line:ln,date,shift:sid,posted:b.posted||null,sqm:Math.max(0,parseInt(fd.get('rq_'+i))||0),prod:b.prod,stops,src:'chat',at:NOW()})});
+    if(bad)return bad;if(!made.length)return 'Tick at least one report.';
+    Object.values(newLines).forEach(l=>S.lines.push(l));made.forEach(r=>S.shiftReports.push(r));lpCands=[];commit();toast('Imported '+made.length+' line report'+(made.length>1?'s':'')+(Object.keys(newLines).length?' and added '+Object.keys(newLines).length+' new line'+(Object.keys(newLines).length>1?'s':''):''))},{submit:'Import ticked reports'});lpCands=[]}
+function lpStats(rs){
+  const o={n:rs.length,sched:0,bd:0,pw:0,co:0,br:0,sqm:0,ys:0,yw:0,nb:0,nco:0,items:{}};
+  rs.forEach(r=>{const sh=shById(r.shift);o.sched+=sh?shLen(sh):480;o.sqm+=r.sqm||0;(r.prod||[]).forEach(p=>{const w=p.sqm||0;if(w){o.ys+=p.yield*w;o.yw+=w}});
+    (r.stops||[]).forEach(s=>{const m=s.min||0;if(s.cat==='Breakdown'){o.bd+=m;o.nb++}else if(s.cat==='Power or utility')o.pw+=m;else if(s.cat==='Changeover'){o.co+=m;o.nco++}else o.br+=m;
+      if(m>0||s.cat!=='Break or sample'){const k=normName(s.text),it=o.items[k]||(o.items[k]={text:s.text,cat:s.cat,n:0,min:0});it.n++;it.min+=m}})});
+  o.lost=o.bd+o.pw+o.co+o.br;o.avail=o.sched?1-o.lost/o.sched:null;o.availX=o.sched-o.co>0?1-(o.bd+o.pw+o.br)/(o.sched-o.co):null;o.run=o.sched-o.lost;o.yieldAvg=o.yw?o.ys/o.yw:null;return o}
+const catChip=c=>`<span class="chip ${c==='Breakdown'?'crit':c==='Changeover'?'info':'warn'} plain" style="font-size:11px;padding:0 7px">${esc(c)}</span>`;
+function lpPeriodReports(){const B=boundsFor(ui.lpRange,ui.lpMonth,ui.lpYear),all=ui.lpRange==='all';return S.shiftReports.filter(r=>{const t=Date.parse(r.date+'T00:00:00');return (all||(t>=B.from&&t<B.to))&&(!ui.lpLine||r.line===ui.lpLine)})}
+function lpResults(){
+  const rs=lpPeriodReports();
+  if(!S.shiftReports.length)return `<div class="card"><div class="card-b"><h3 style="margin-bottom:6px">Bring in your shift reports</h3><p style="color:var(--muted);margin-top:0">Click <b>Paste shift reports</b> and paste the messages your team posts after each shift (production per line and the stoppages list). The app separates breakdowns, power cuts, changeovers and breaks, and works out line availability with and without changeovers.</p></div></div>`;
+  if(!rs.length)return '<div class="empty">No shift reports in this period.</div>';
+  const all=lpStats(rs),lines=S.lines.filter(l=>rs.some(r=>r.line===l.id));
+  const kp=(st,t)=>`<div class="grid g-kpi">${kpi('Availability',pct(st.avail),'','all stoppages counted')}${kpi('Excluding changeovers',pct(st.availX),'','changeover time left out')}${kpi('Breakdowns',fHrs(st.bd),'h',st.nb+' stoppage'+(st.nb===1?'':'s'))}${kpi('Changeovers',fHrs(st.co),'h',st.nco+' changeover'+(st.nco===1?'':'s')+(st.nco?', avg '+fDur(st.co/st.nco):''))}${kpi('Power / utility',fHrs(st.pw),'h',st.br?fDur(st.br)+' breaks and samples':'&nbsp;')}${kpi('Production',Math.round(st.sqm).toLocaleString('en-US'),'sqm',st.run>0?Math.round(st.sqm/(st.run/60)).toLocaleString('en-US')+' sqm per run hour':'&nbsp;')}${kpi('Yield',st.yieldAvg==null?'–':st.yieldAvg.toFixed(1)+'%','','weighted by sqm')}${kpi('Scheduled',fHrs(st.sched),'h',st.n+' shift report'+(st.n===1?'':'s'))}</div>`;
+  const items=st=>{const a=Object.values(st.items).sort((x,y)=>y.min-x.min).slice(0,12);return a.length?`<div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Stoppage</th><th>Counts as</th><th class="r">Times</th><th class="r">Minutes</th><th class="r">Average</th></tr></thead><tbody>${a.map(x=>`<tr><td>${esc(x.text)}</td><td>${catChip(x.cat)}</td><td class="r mono">${x.n}</td><td class="r mono">${x.min?fDur(x.min):'<span class="sub">no time given</span>'}</td><td class="r mono">${x.min&&x.n?fDur(x.min/x.n):''}</td></tr>`).join('')}</tbody></table></div></div>`:''};
+  const byShift=r2=>S.shifts.map(sh=>{const s=lpStats(r2.filter(r=>r.shift===sh.id));return s.n?`<tr><td>${esc(shName(sh.id))}</td><td class="r mono">${s.n}</td><td class="r mono">${fDur(s.bd+s.pw)}</td><td class="r mono">${fDur(s.co)}</td><td class="r mono">${pct(s.avail)}</td><td class="r mono">${pct(s.availX)}</td><td class="r mono">${Math.round(s.sqm).toLocaleString('en-US')}</td></tr>`:''}).join('');
+  const shiftTbl=r2=>`<div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Shift</th><th class="r">Reports</th><th class="r">Breakdown + power</th><th class="r">Changeover</th><th class="r">Availability</th><th class="r">Excl. changeovers</th><th class="r">sqm</th></tr></thead><tbody>${byShift(r2)}</tbody></table></div></div>`;
+  const recent=rs.slice().sort((a,b)=>b.date.localeCompare(a.date)||String(a.shift).localeCompare(b.shift)).slice(0,25);
+  return `<div class="sub" style="margin:0 0 8px">Availability = run time ÷ scheduled shift time. "Excluding changeovers" removes changeover time from the scheduled time, so it shows how reliable the line is when it is meant to be running.</div>
+  ${!ui.lpLine&&lines.length>1?`<h3 style="margin:14px 0 8px">All lines together</h3>${kp(all)}`:''}
+  ${lines.map(l=>{const r2=rs.filter(r=>r.line===l.id),st=lpStats(r2);return `<h3 style="margin:22px 0 8px">${esc(l.name)}</h3>${kp(st)}${shiftTbl(r2)}${items(st)}`}).join('')}
+  <h3 style="margin:22px 0 8px">Recent reports</h3><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Shift</th><th>Line</th><th class="r">sqm</th><th class="r">Breakdown</th><th class="r">Changeover</th><th></th></tr></thead><tbody>${recent.map(r=>{const s=lpStats([r]);return `<tr><td class="mono">${esc(r.date)}</td><td>${esc(shName(r.shift))}</td><td>${esc((lById(r.line)||{}).name||'')}</td><td class="r mono">${r.sqm}</td><td class="r mono">${fDur(s.bd+s.pw)}</td><td class="r mono">${fDur(s.co)}</td><td class="r"><button class="btn sm ghost danger" data-act="lpDelete" data-id="${r.id}">Delete</button></td></tr>`}).join('')}</tbody></table></div></div>`}
+function vLinePerf(){
+  return `<div class="filters">${periodPicker('lp')}
+    <select data-f="lpLine" aria-label="Line"><option value="">All lines</option>${S.lines.map(l=>`<option value="${l.id}"${ui.lpLine===l.id?' selected':''}>${esc(l.name)}</option>`).join('')}</select>
+    <button class="btn primary" data-act="lpImport">Paste shift reports</button><button class="btn" data-act="editShifts">Shifts</button></div>
+    <div id="results">${lpResults()}</div>`}
+
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
 lastSnap=snap();
-function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts(),d=ensureTrials(),f=ensureShifts();return a||b||c||d||f}
+function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts(),d=ensureTrials(),f=ensureShifts(),g=ensureReports();return a||b||c||d||f||g}
 function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;migrate();lastSnap=snap();edits++;save();render();
   if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
 function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
@@ -708,6 +803,7 @@ const IC={
  overview:'<path d="M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10"/>',
  reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
  downtime:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>',
+ lineperf:'<path d="M3 20h18M6 16V9M11 16V5M16 16v-7M21 16v-4"/>',
  costs:'<path d="M12 3v18M16.5 7.5C16.5 5.8 14.5 5 12 5S7.5 5.8 7.5 7.8 9.5 10.5 12 11s4.5 1.2 4.5 3.2S14.5 17 12 17s-4.5-.8-4.5-2.5"/>',
  history:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 8v4l3 2"/>',
  parts:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
@@ -851,7 +947,7 @@ function lineForm(id){
 }
 function deleteLine(id){const l=lById(id),n=S.machines.filter(m=>m.line===id).length;
   if(n){toast('Move or remove the '+n+' machine'+(n>1?'s':'')+' on '+l.name+' first');return}
-  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.parts.forEach(p=>{if(p.byLine&&p.byLine[id]){p.byLine.main=(p.byLine.main||0)+p.byLine[id];delete p.byLine[id]}});S.lines=S.lines.filter(x=>x.id!==id);ensureCosts();commit();toast('Line deleted. Its spare stock moved to main stores.')})}
+  confirmBox('Delete '+esc(l.name),'This production line has no machines. It will be removed.','Delete line',()=>{S.parts.forEach(p=>{if(p.byLine&&p.byLine[id]){p.byLine.main=(p.byLine.main||0)+p.byLine[id];delete p.byLine[id]}});S.shiftReports=(S.shiftReports||[]).filter(r=>r.line!==id);S.lines=S.lines.filter(x=>x.id!==id);ensureCosts();commit();toast('Line deleted. Its spare stock moved to main stores.')})}
 function machineForm(id,lineId){
   const m=id?mById(id):null;
   if(!S.lines.length){toast('Add a production line first');return}
@@ -1055,6 +1151,7 @@ const VIEWS={
  reports:{t:'Reports',s:()=>'Downtime, availability and spend by month and year'},
  downtime:{t:'Downtime',s:()=>'Every stop, its cause and the spares it used'},
  parts:{t:'Spare parts',s:()=>S.parts.length+' parts in stores'},
+ lineperf:{t:'Line performance',s:()=>'Production, stoppages, changeovers and availability from your shift reports'},
  costs:{t:'Spare costs',s:()=>'Bring in the monthly cost report and assign each line to a machine'},
  history:{t:'Stock history',s:()=>'Every spare issued, received, moved, adjusted or repaired'},
  machines:{t:'Machines',s:()=>S.machines.length+' machines on '+S.lines.length+' lines'},
@@ -1415,6 +1512,7 @@ function tables(){
    'Spare parts':[['Stores code','Part number','Name','Brand','Category','Serialized','Repairable','Unit value (LKR)','In stock','Minimum','Reorder level','Max','Status','On order','Location','Supplier','Lead time (days)','Stock value (LKR)'].concat(locKeys().map(k=>'In '+locName(k))).concat(S.lines.map(l=>'Installed on '+l.name))].concat(S.parts.map(p=>[p.code,p.pn,p.name,p.brand,p.cat,p.serialized?'Yes':'No',p.repairable?'Yes':'No',p.cost,p.stock,p.min,p.reorder,p.max,stock(p).k,onOrder(p.id),p.loc,p.supplier,p.lead,p.stock*p.cost].concat(locKeys().map(k=>p.byLine[k]||0)).concat(S.lines.map(l=>fittedOn(p,l.id).n)))),
    'Spare costs':[['Date','MRN','Dept code','Department','Item code','Description','Qty','Unit cost (LKR)','Cost (LKR)','Status','Machine','Line','Linked part']].concat(S.costs.map(c=>{const e=csEff(c),pp=costPart(c),ln=csLine(c);return [dayKey(c.t),c.mrn,c.dpt,c.dptName,c.itemCode,c.desc,(c.type==='return'?-1:1)*c.qty,c.unit,c.value,{new:'To assign',machine:'On machine',line:'Line common',auto:'Line common (auto)',removed:'Removed'}[e],e==='machine'?c.machine:'',ln?locName(ln):'',pp?pp.name:'']})),
    'Testing take-outs':[['Part','Code','Taken out','Returned or used','Result','Machine','By','Note','Round']].concat(S.trials.map(x=>{const p=pById(x.partId)||{};return [p.name||'',p.code||'',dayKey(x.out),x.end?dayKey(x.end):'',{out:'Still out',returned:'Returned unused',used:'Used'}[x.result],x.machine||'',x.by||'',x.note||'',x.chain+1]})),
+   'Line shift reports':[['Date','Line','Shift','Production (sqm)','Scheduled (min)','Breakdown (min)','Power or utility (min)','Changeover (min)','Break or sample (min)','Availability %','Availability excl. changeovers %','Stoppage details']].concat(S.shiftReports.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{const t=lpStats([r]);return [r.date,(lById(r.line)||{}).name||'',shName(r.shift),r.sqm,t.sched,t.bd,t.pw,t.co,t.br,t.avail==null?'':+(t.avail*100).toFixed(1),t.availX==null?'':+(t.availX*100).toFixed(1),(r.stops||[]).map(x=>x.text+' ('+x.cat+', '+x.min+' min)').join('; ')]})),
    'Machines':[['Code','Name','Serial number','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,m.serial||'',ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
    'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Shift','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),evShiftLabel(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
@@ -1510,13 +1608,13 @@ function vSettings(){
 
 /* ---------- render ---------- */
 function renderNav(){
-  const items=[['overview','Overview'],['reports','Reports'],['downtime','Downtime'],['parts','Spare parts'],['history','Stock history'],['costs','Spare costs'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
+  const items=[['overview','Overview'],['reports','Reports'],['downtime','Downtime'],['parts','Spare parts'],['lineperf','Line performance'],['history','Stock history'],['costs','Spare costs'],['machines','Machines'],['assets','Assets'],['repairs','Repairs'],['purchasing','Purchasing'],['settings','Data & sync']];
   const bd={downtime:[openEvents().length,true],parts:[alertParts().length,false],repairs:[S.repairs.filter(r=>r.status!=='Returned').length,false],purchasing:[S.pos.filter(o=>o.status!=='Received'&&o.status!=='Cancelled').length,false],costs:[S.costs.filter(c=>csEff(c)==='new').length,S.costs.some(c=>csEff(c)==='new'&&csFlags(c).some(f=>f!=='No MRN'&&f!=='Return or receipt'))]};
   $('#nav').innerHTML=items.map(([k,l])=>`<button data-act="nav" data-id="${k}" ${ui.view===k?'aria-current="page"':''}>${ic(k)}<span>${l}</span>${bd[k]&&bd[k][0]?`<span class="badge ${bd[k][1]?'hot':''}">${bd[k][0]}</span>`:''}</button>`).join('');
 }
 function render(){applyBrand();
   renderNav();
-  const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,history:vHistory,costs:vCosts,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
+  const v=VIEWS[ui.view],html={overview:vOverview,reports:vReports,downtime:vDowntime,parts:vParts,history:vHistory,costs:vCosts,lineperf:vLinePerf,machines:vMachines,assets:vAssets,repairs:vRepairs,purchasing:vPurchasing,settings:vSettings}[ui.view]();
   const act={overview:`<button class="btn" data-act="newMachine">${ic('plus')} Machine</button>`,parts:`<button class="btn" data-act="newPart">${ic('plus')} Add part</button>`,machines:`<button class="btn" data-act="newLine">${ic('plus')} Add line</button><button class="btn" data-act="newMachine">${ic('plus')} Add machine</button>`,assets:`<button class="btn" data-act="newAsset">${ic('plus')} Add asset</button>`,repairs:`<button class="btn" data-act="newRepair">${ic('plus')} Repair request</button>`,purchasing:`<button class="btn" data-act="newPO">${ic('plus')} New PO</button>`}[ui.view]||'';
   const y=window.scrollY;
   $('#main').innerHTML=`<div class="top"><div><h1>${v.t}</h1><p>${v.s()}</p></div><div class="actions"><button class="btn" data-act="undo" ${undoStack.length?'':'disabled'} title="Undo (Ctrl+Z)" aria-label="Undo">${ic('undo')}<span class="lbl">Undo</span></button><button class="btn" data-act="redo" ${redoStack.length?'':'disabled'} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${ic('redo')}<span class="lbl">Redo</span></button>${ui.view==='overview'?'':act}<button class="btn primary" data-act="logDowntime">${ic('plus')} Log downtime</button></div></div>${sync.conflict?'<div class="note" style="background:var(--crit-soft)"><b>The cloud has changes this browser does not.</b> <button class="btn sm" data-act="useCloud">Use cloud version</button> <button class="btn sm" data-act="overwriteCloud">Overwrite cloud with mine</button></div>':''}${memOnly?'<div class="note">Browser storage is blocked here, so changes last only until you close this page.</div>':''}${html}`;
@@ -1532,7 +1630,7 @@ const ACT={
  openMachine:b=>{closeModal();openDrawer(machineDrawer(b.dataset.id))},
  openPart:b=>openDrawer(partDrawer(b.dataset.id)),
  trialOut:b=>trialOutForm(b.dataset.id),trialReturn:b=>trialReturnForm(b.dataset.id),trialUse:b=>trialUseForm(b.dataset.id),
- editShifts:()=>shiftForm(),chatImport:()=>chatImportForm(),chatRead:()=>chatReadNow(),
+ editShifts:()=>shiftForm(),lpImport:()=>lpImportForm(),lpRead:()=>lpReadNow(),lpDelete:b=>{const r=S.shiftReports.find(x=>x.id===b.dataset.id);if(!r)return;confirmBox('Delete shift report','Delete the '+shName(r.shift)+' report for '+esc((lById(r.line)||{}).name||'this line')+' on '+esc(r.date)+'? You can undo this.','Delete',()=>{S.shiftReports=S.shiftReports.filter(x=>x.id!==r.id);commit();toast('Report deleted')})},chatImport:()=>chatImportForm(),chatRead:()=>chatReadNow(),
  csImport:()=>{const f=$('#costFile');if(f)f.click()},csDepts:()=>costDeptForm(),csLink:b=>csLinkForm(b.dataset.id),csMore:()=>{ui.csLimit=(ui.csLimit||100)+100;csRefresh()},
  csFlag:b=>{ui.csFlag=ui.csFlag===b.dataset.v?'':b.dataset.v;if(ui.csFlag&&ui.csStatus==='new'){}csRefresh()},csClearSel:()=>{ui.csSel={};csRefresh()},
  csBulkApply:()=>{const v=($('#csBulk')||{}).value,ids=Object.keys(ui.csSel||{}).filter(k=>ui.csSel[k]);if(!v){toast('Choose where to assign the selected lines');return}assignCost(ids,v)},
@@ -1572,7 +1670,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('keydown',e=>{const tg=e.target.tagName;if((e.ctrlKey||e.metaKey)&&!/INPUT|TEXTAREA|SELECT/.test(tg)){const k=e.key.toLowerCase();if(k==='z'&&!e.shiftKey){e.preventDefault();undo();return}if((k==='z'&&e.shiftKey)||k==='y'){e.preventDefault();redo();return}}
   if(e.key==='Escape'){if($('#modalLayer').classList.contains('open'))closeModal();else if(drawerFn)closeDrawer()}
   if((e.key==='Enter'||e.key===' ')&&e.target.tagName==='TR'&&e.target.dataset.act){e.preventDefault();ACT[e.target.dataset.act](e.target)}});
-function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt|hs|cs)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';ui.dtLimit=0;ui.hsLimit=0;ui.csLimit=0;render();return}if(/^hs/.test(t.dataset.f))ui.hsLimit=0;if(/^cs/.test(t.dataset.f))ui.csLimit=0;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults,history:hsResults,costs:csResults})[ui.view]()}else render()}
+function onFilter(e){const t=e.target;if(t.dataset.f){ui[t.dataset.f]=t.value;const pm=/^(ov|dt|hs|cs|lp)(Month|Year)$/.exec(t.dataset.f);if(pm){ui[pm[1]+'Range']=ui[pm[1]+'Month']==='all'?'year':'month';ui.dtLimit=0;ui.hsLimit=0;ui.csLimit=0;render();return}if(/^hs/.test(t.dataset.f))ui.hsLimit=0;if(/^cs/.test(t.dataset.f))ui.csLimit=0;const r=$('#results');if(r){r.innerHTML=({downtime:dtResults,parts:partsResults,assets:assetsResults,history:hsResults,costs:csResults,lineperf:lpResults})[ui.view]()}else render()}
   if(t.dataset.mstatus){const m=mById(t.dataset.mstatus);m.status=t.value;commit();toast(m.id+' set to '+t.value)}}
 document.addEventListener('input',e=>{if(e.target.type==='search')onFilter(e)});
 const csRefresh=()=>{const r=$('#results');if(r&&ui.view==='costs')r.innerHTML=csResults()};
@@ -1592,4 +1690,3 @@ if(setupApplied)toast('Connected with your setup link');
 if(sbOn())doSync(false);
 })();
 </script>
-</body></html>

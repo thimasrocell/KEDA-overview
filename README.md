@@ -56,3 +56,6 @@ Every push to `main` redeploys automatically. The app works the same on GitHub P
 - **Testing take-outs:** a spare can be taken out for testing and returned unused. The part shows "Tested N× and returned" until it is issued to a machine; then the marker clears and the history ("used after N test take-outs") is kept.
 - **Shifts:** set your shifts under Data & sync. Downtime can be logged by exact time (the shift is worked out, and stops that cross a shift change are split) or by shift and total minutes. Downtime and Reports show downtime by shift.
 - **Paste shift reports:** on the Downtime page, paste chat text and the app reads machine codes with time ranges or minutes (no AI, nothing leaves the browser, the pasted text is not saved). Review and import the rows you tick.
+
+## Line performance (shift reports)
+Paste the production message posted after each shift (e.g. "Keda 02 - 1643 sqm", yields, "Stoppages - (...)"). It runs in the browser only, without AI. Stoppages are sorted into Breakdown, Power or utility, Changeover and Break or sample. Availability = run time / scheduled shift time; "excluding changeovers" removes changeover time from the scheduled time. These are kept separate from machine downtime events.
