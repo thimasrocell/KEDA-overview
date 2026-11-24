@@ -393,7 +393,7 @@ let S=null, memOnly=false;
 function load(){try{const j=localStorage.getItem(KEY);if(j){const o=JSON.parse(j);if(o&&o.v===1)return o}}catch(e){memOnly=true}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){memOnly=true}updateStatus()}
 S=load()||seed();
-const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',csQ:'',csStatus:'new',csDpt:'',csFlag:'',csSel:{},csRange:'all',csMonth:String(new Date().getMonth()),csYear:new Date().getFullYear(),csLimit:0,hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
+const ui={view:'overview',ovRange:'30',ovMonth:String(new Date().getMonth()),ovYear:new Date().getFullYear(),rpMode:'month',rpYear:new Date().getFullYear(),partQ:'',partCat:'',partSt:'',dtRange:'30',dtShift:'',csQ:'',csStatus:'new',csDpt:'',csFlag:'',csSel:{},csRange:'all',csMonth:String(new Date().getMonth()),csYear:new Date().getFullYear(),csLimit:0,hsQ:'',hsType:'',hsMachine:'',hsRange:'all',hsMonth:String(new Date().getMonth()),hsYear:new Date().getFullYear(),hsLimit:0,dtMonth:String(new Date().getMonth()),dtYear:new Date().getFullYear(),dtLine:'',dtType:'',dtQ:'',poFilter:'',assetSt:''};
 
 /* ---------- stock by location and machine numbering ---------- */
 const MAIN='main';
@@ -576,11 +576,41 @@ function trialUseForm(id){const tr=S.trials.find(x=>x.id===id),p=pById(tr.partId
     const m=fd.get('machine');tr.result='used';tr.end=NOW();tr.machine=m;
     const tx={id:newId('tx'),t:NOW(),partId:p.id,type:'Issue to machine',qty:-1,machine:m,ref:'',by:fd.get('by')||tr.by||'Stores',loc:'from testing',nostock:true};S.txns.push(tx);const n=trialClose(p,tx,tr);commit();toast('Recorded as used on '+m+' after '+n+' test take-out'+(n>1?'s':'')+'. Marker cleared, history kept.')},{submit:'Mark as used'})}
 
+/* ---------- shifts ---------- */
+const hm=v=>{const m=/^(\d{1,2}):(\d{2})$/.exec(v||'');return m?(+m[1]*60+ +m[2]):NaN};
+const hmTxt=min=>p2(Math.floor(min/60)%24)+':'+p2(min%60);
+function ensureShifts(){if(!Array.isArray(S.shifts)||!S.shifts.length)S.shifts=[{id:'A',name:'Morning',from:'06:00',to:'14:00'},{id:'B',name:'Afternoon',from:'14:00',to:'22:00'},{id:'C',name:'Night',from:'22:00',to:'06:00'}];return false}
+const shById=id=>S.shifts.find(x=>x.id===id)||null;
+const shName=id=>{const s=shById(id);return s?(s.name||'Shift '+s.id):'Shift '+id};
+const shLen=s=>{const a=hm(s.from),b=hm(s.to);let d=(b-a+1440)%1440;return d===0?1440:d};
+const shRange=s=>s.from+' to '+s.to;
+function shInstances(t0,t1){const out=[],d0=new Date(t0);d0.setHours(0,0,0,0);d0.setDate(d0.getDate()-1);const end=new Date(t1);end.setHours(0,0,0,0);end.setDate(end.getDate()+1);
+  for(let d=new Date(d0);d<=end;d.setDate(d.getDate()+1)){S.shifts.forEach(s=>{const st=new Date(d);st.setHours(0,hm(s.from),0,0);const a=st.getTime(),b=a+shLen(s)*MIN;if(b>t0&&a<t1)out.push({s,a,b,date:dayKey(new Date(d).getTime())})})}return out}
+function evShiftSegs(e){const a=evStart(e),b=evEnd(e);
+  if(e.shiftEntry&&e.shift)return [{id:e.shift,date:e.shiftDate||dayKey(a),ms:Math.max(0,b-a)}];
+  return shInstances(a,b).map(x=>({id:x.s.id,date:x.date,ms:Math.min(b,x.b)-Math.max(a,x.a)})).filter(x=>x.ms>0)}
+const evShiftIds=e=>Array.from(new Set(evShiftSegs(e).map(x=>x.id)));
+const evShiftLabel=e=>{const ids=evShiftIds(e);return ids.length?ids.map(id=>'Shift '+id).join(' + '):'–'};
+function shiftOfTime(t){const x=shInstances(t,t+1)[0];return x?x.s:null}
+function shiftStart(dateStr,sid){const s=shById(sid),d=new Date(dateStr+'T00:00:00');if(!s||isNaN(d))return NaN;d.setHours(0,hm(s.from),0,0);return d.getTime()}
+function shiftForm(){
+  modal('Shifts',`<div class="field full"><label>Set the shifts your factory runs. Leave the name empty to switch a slot off. A night shift can run past midnight, for example 22:00 to 06:00. Shifts cannot overlap.</label></div>
+    ${['A','B','C','D'].map(id=>{const s=shById(id)||{name:'',from:'06:00',to:'14:00'};return `<div class="field"><label for="sh_n_${id}">Shift ${id} name</label><input id="sh_n_${id}" name="n_${id}" value="${esc(s.name||'')}" placeholder="${id==='D'?'Not used':''}"></div><div class="field"><label>Shift ${id} runs</label><div style="display:flex;gap:6px;align-items:center"><input type="time" name="f_${id}" value="${s.from}" aria-label="Shift ${id} starts"><span>to</span><input type="time" name="t_${id}" value="${s.to}" aria-label="Shift ${id} ends"></div></div>`}).join('')}`,fd=>{
+    const list=[];['A','B','C','D'].forEach(id=>{const n=(fd.get('n_'+id)||'').trim();if(!n)return;list.push({id,name:n,from:fd.get('f_'+id),to:fd.get('t_'+id)})});
+    if(!list.length)return 'Keep at least one shift.';if(list.some(s=>isNaN(hm(s.from))||isNaN(hm(s.to))))return 'Enter start and end times for each shift.';
+    const used=new Array(1440).fill(0);for(const s of list){const a=hm(s.from),l=shLen(s);for(let k=0;k<l;k++){if(used[(a+k)%1440])return 'Shifts overlap. Check the times of '+s.name+'.';used[(a+k)%1440]=1}}
+    S.shifts=list;commit();toast('Shifts saved')},{submit:'Save shifts'})}
+function shiftReport(from,to,scope){
+  const evs=evIn(from,to),rows={};S.shifts.forEach(s=>{rows[s.id]={n:0,min:0,un:0,days:{}}});
+  evs.forEach(e=>{evShiftSegs(e).forEach(g=>{const r=rows[g.id];if(!r)return;r.n++;const m=g.ms/MIN;r.min+=m;if(e.type==='Unplanned')r.un+=m;r.days[g.date]=1})});
+  const tot=Object.values(rows).reduce((a,r)=>a+r.min,0);
+  return `<div class="card"><div class="card-h"><h2>Downtime by shift</h2><small>${esc(scope)} · <button class="link" data-act="editShifts">Edit shifts</button></small></div><div class="tbl-wrap"><table><thead><tr><th>Shift</th><th>Hours</th><th class="r">Stops</th><th class="r">Downtime</th><th class="r">Unplanned</th><th class="r">Share</th></tr></thead><tbody>${S.shifts.map(s=>{const r=rows[s.id];return `<tr><td class="name">${esc(shName(s.id))}</td><td class="mono">${esc(shRange(s))}</td><td class="r mono">${r.n}</td><td class="r mono">${fDur(r.min)}</td><td class="r mono">${fDur(r.un)}</td><td class="r mono">${tot?Math.round(r.min/tot*100)+'%':'–'}</td></tr>`}).join('')}</tbody></table></div></div>`}
+
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
 lastSnap=snap();
-function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts(),d=ensureTrials();return a||b||c||d}
+function migrate(){const a=ensureStock(),b=renumberMachines(),c=ensureCosts(),d=ensureTrials(),f=ensureShifts();return a||b||c||d||f}
 function restore(str,msg){const o=JSON.parse(str);o.rev=S.rev;o.dirty=true;S=o;migrate();lastSnap=snap();edits++;save();render();
   if(drawerFn){renderDrawer();if(!$('#drawer').innerHTML.trim())closeDrawer()}scheduleSync();toast(msg)}
 function undo(){if(!undoStack.length){toast('Nothing to undo');return}const e=undoStack.pop();redoStack.push({s:snap(),l:e.l});restore(e.s,'Undid: '+e.l)}
@@ -662,8 +692,12 @@ function logDowntime(mid,resolveId){
     <div class="field full"><label for="f_m">Machine</label><select id="f_m" name="machine" required>${machOpts(mid)}</select></div>
     <div class="field"><label for="f_type">Type</label><select id="f_type" name="type" data-cause>${opts(['Unplanned','Planned'])}</select></div>
     <div class="field"><label for="f_cause">Cause</label><input id="f_cause" name="cause" list="causeList" value="${UNPLANNED[0]}" required><datalist id="causeList">${UNPLANNED.map(c=>`<option value="${c}">`).join('')}</datalist></div>
-    <div class="field"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(NOW()-30*MIN)}" required></div>
-    <div class="field"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down (machine not running yet)</option><option value="done">Back up (fault fixed, machine running)</option></select></div>
+    <div class="field full"><label for="f_mode">How do you want to enter the time?</label><select id="f_mode" name="mode"><option value="time">Exact times (the shift is worked out)</option><option value="shift">By shift and total minutes</option></select></div>
+    <div class="field" id="shDateWrap" hidden><label for="f_sd">Shift date</label><input id="f_sd" type="date" name="sdate" value="${dayKey(NOW())}"><span class="hint">A night shift belongs to the day it started.</span></div>
+    <div class="field" id="shPickWrap" hidden><label for="f_sh">Shift</label><select id="f_sh" name="shift">${S.shifts.map(x=>`<option value="${x.id}">${esc(shName(x.id)+' ('+shRange(x)+')')}</option>`).join('')}</select></div>
+    <div class="field" id="shMinWrap" hidden><label for="f_sm">Total minutes stopped in the shift</label><input id="f_sm" type="number" name="smin" min="1" placeholder="e.g. 40"><span class="hint">Add up all the short stops in that shift. Saved as one record against the shift.</span></div>
+    <div class="field" id="startWrap"><label for="f_start">Stopped at</label><input id="f_start" type="datetime-local" name="start" value="${toLocalInput(NOW()-30*MIN)}"><span class="hint" id="shHint"></span></div>
+    <div class="field" id="stateWrap"><label for="f_state">Status</label><select id="f_state" name="state" data-state><option value="open">Still down (machine not running yet)</option><option value="done">Back up (fault fixed, machine running)</option></select></div>
     <div class="field" id="endWrap" hidden><label for="f_end">Back up at</label><input id="f_end" type="datetime-local" name="end" value="${toLocalInput(NOW())}"></div>
     <div class="field" id="durWrap" hidden><label for="f_dur">Or total minutes stopped</label><input id="f_dur" type="number" name="dur" min="1" placeholder="e.g. 40"><span class="hint">Use this for old data. Set "Stopped at" to when the stop (or shift) began; the back-up time is worked out for you and replaces the box on the left.</span></div>
     <div class="field"><label for="f_tech">Technician</label><input id="f_tech" name="tech" placeholder="e.g. S. Fernando"></div>
@@ -675,6 +709,10 @@ function logDowntime(mid,resolveId){
     if(ev){const end=Date.parse(fd.get('end'));if(!(end>evStart(ev)))return 'Back-in-production time must be after the stop time.';if(end>NOW()+MIN)return 'Back-in-production time cannot be in the future.';
       ev.end=new Date(end).toISOString();ev.tech=tech;ev.desc=desc;ev.parts=(ev.parts||[]).concat(used);delete ev.blocked;
       const w=applyParts(used,ev.machine,ev.id,tech||'Maintenance',end);commit();toast('Resolved after '+fDur(evMin(ev))+(w.length?' · stock short for '+w.join(', '):''));return}
+    if(fd.get('mode')==='shift'){const sid=fd.get('shift'),sd=fd.get('sdate'),sm=parseInt(fd.get('smin'))||0,sh=shById(sid),st0=shiftStart(sd,sid);
+      if(!sh||isNaN(st0))return 'Choose the shift date and shift.';if(!(sm>0))return 'Enter the total minutes stopped.';if(sm>shLen(sh))return 'A shift of '+shRange(sh)+' is only '+shLen(sh)+' minutes long.';if(st0>NOW())return 'That shift has not started yet.';
+      const e2={id:newId('dt'),machine:fd.get('machine'),type:fd.get('type'),cause:fd.get('cause'),start:new Date(st0).toISOString(),end:new Date(st0+sm*MIN).toISOString(),desc,tech,parts:used,shift:sid,shiftDate:sd,shiftEntry:true};
+      if(fd.get('blocked'))e2.blocked=fd.get('blocked');S.events.push(e2);applyParts(used,e2.machine,e2.id,tech||'Maintenance',Math.min(NOW(),st0+sm*MIN));commit();toast('Logged '+sm+' min in '+shName(sid));return}
     const start=Date.parse(fd.get('start'));if(!start)return 'Enter when the machine stopped.';
     const done=fd.get('state')==='done',dm=parseInt(fd.get('dur'))||0;const end=done?(dm>0?start+dm*MIN:Date.parse(fd.get('end'))):null;
     if(done&&!(end>start))return 'Back-up time must be after the stop time.';if(done&&end>NOW()+MIN)return 'Back-up time cannot be in the future.';
@@ -688,7 +726,9 @@ function logDowntime(mid,resolveId){
   if(!ev){
     const type=$('[data-cause]',f),cause=$('#f_cause',f),st=$('[data-state]',f);
     type.addEventListener('change',()=>{const l=type.value==='Planned'?PLANNED:UNPLANNED;$('#causeList',f).innerHTML=l.map(c=>`<option value="${c}">`).join('');cause.value=l[0]});
-    st.addEventListener('change',()=>{$('#endWrap',f).hidden=st.value!=='done';$('#durWrap',f).hidden=st.value!=='done'});
+    const mode=$('#f_mode',f),sync=()=>{const sh=mode.value==='shift',dn=st.value==='done';['#shDateWrap','#shPickWrap','#shMinWrap'].forEach(i=>{$(i,f).hidden=!sh});['#startWrap','#stateWrap'].forEach(i=>{$(i,f).hidden=sh});$('#endWrap',f).hidden=sh||!dn;$('#durWrap',f).hidden=sh||!dn;
+      const t=Date.parse($('#f_start',f).value),x=t?shiftOfTime(t):null;$('#shHint',f).textContent=x?'Falls in '+shName(x.id)+' ('+shRange(x)+')':''};
+    st.addEventListener('change',sync);mode.addEventListener('change',sync);$('#f_start',f).addEventListener('input',sync);sync();
   }
 }
 
@@ -847,7 +887,8 @@ function editEvent(id){
     if(!start)return 'Enter when the machine stopped.';if(end&&!(end>start))return 'Back-up time must be after the stop time.';
     if(end&&end>NOW()+MIN)return 'Back-up time cannot be in the future.';if(start>NOW()+MIN)return 'Stop time cannot be in the future.';
     const mid=fd.get('machine');if(!end&&S.events.some(x=>x!==e&&!x.end&&x.machine===mid))return 'This machine already has another open downtime.';
-    e.machine=mid;e.type=fd.get('type');e.cause=fd.get('cause').trim();e.start=new Date(start).toISOString();e.end=end?new Date(end).toISOString():null;e.tech=fd.get('tech');e.desc=fd.get('desc');
+    const ns=new Date(start).toISOString(),ne=end?new Date(end).toISOString():null;if(e.shiftEntry&&(ns!==e.start||ne!==e.end)){delete e.shiftEntry;delete e.shift;delete e.shiftDate}
+    e.machine=mid;e.type=fd.get('type');e.cause=fd.get('cause').trim();e.start=ns;e.end=ne;e.tech=fd.get('tech');e.desc=fd.get('desc');
     if(fd.get('blocked')&&!e.end)e.blocked=fd.get('blocked');else delete e.blocked;commit();toast('Downtime updated')},{submit:'Save'});
 }
 function poEdit(id){
@@ -1108,12 +1149,13 @@ function vReports(){
     <div class="card"><div class="card-h"><h2>Machines with most downtime</h2><small>unplanned, ${esc(scope)}</small></div><div class="card-b">${hbars(byM.map(x=>({l:x.m.id+' '+x.m.name.replace(/ [A-Z]\d?$/,''),v:x.v,t:fDur(x.v),click:x.m.id})),byM[0]?byM[0].v:1)}</div></div>
     <div class="card"><div class="card-h"><h2>Spares used most</h2><small>by value, ${esc(scope)}</small></div><div class="card-b row-list">${parts.map(o=>`<div class="item"><div class="grow"><div class="t"><button class="link" data-act="openPart" data-id="${o.p.id}">${esc(o.p.name)}</button></div><div class="s mono">${esc(o.p.code)} · ${o.q} used</div></div><span class="mono">${lkr(o.v)}</span></div>`).join('')||'<div class="empty">No spares issued in this period.</div>'}</div></div>
   </div>
+  <div style="margin-top:14px">${shiftReport(sf,st,scope)}</div>
   <div class="card" style="margin-top:14px"><div class="card-h"><h2>${mode==='month'?'Month by month, '+yr:'Year by year'}</h2><small>Availability assumes 22 scheduled hours a day on the machines you have now.</small></div><div class="tbl-wrap"><table><thead><tr><th>Period</th><th class="r">Stops</th><th class="r">Unplanned h</th><th class="r">Planned h</th><th class="r">Avg repair</th><th class="r">Availability</th><th class="r">Spares issued</th><th class="r">Purchases</th><th class="r">Repairs</th></tr></thead><tbody>${rows}${tot}</tbody></table></div></div>`;
 }
 
 function dtFiltered(){
   const B=boundsFor(ui.dtRange,ui.dtMonth,ui.dtYear),q=ui.dtQ.toLowerCase();
-  return evIn(B.from,B.to,e=>(!ui.dtLine||(mById(e.machine)||{}).line===ui.dtLine)&&(!ui.dtType||e.type===ui.dtType)&&(!q||(e.machine+' '+(mById(e.machine)||{}).name+' '+e.cause+' '+e.desc+' '+e.tech).toLowerCase().includes(q))).sort((a,b)=>evStart(b)-evStart(a));
+  return evIn(B.from,B.to,e=>(!ui.dtLine||(mById(e.machine)||{}).line===ui.dtLine)&&(!ui.dtType||e.type===ui.dtType)&&(!ui.dtShift||evShiftIds(e).indexOf(ui.dtShift)>=0)&&(!q||(e.machine+' '+(mById(e.machine)||{}).name+' '+e.cause+' '+e.desc+' '+e.tech).toLowerCase().includes(q))).sort((a,b)=>evStart(b)-evStart(a));
 }
 function dtResults(){
   const evs=dtFiltered(),un=evs.filter(e=>e.type==='Unplanned'),cl=un.filter(e=>e.end);
@@ -1123,8 +1165,10 @@ function dtResults(){
   const ms=Object.entries(byM).sort((a,b)=>b[1]-a[1]).slice(0,7);
   const spareHit=evs.filter(e=>e.parts&&e.parts.length).length;
   const lim=ui.dtLimit||60;const rows=evs.slice(0,lim).map(e=>{const m=mById(e.machine);const parts=(e.parts||[]).map(u=>{const p=pById(u.partId);return p?`${u.qty}× ${p.code}`:''}).join(', ');
-    return `<tr><td><div class="mono">${fDT(evStart(e))}</div><div class="sub">${esc(e.tech||'')}</div></td><td><button class="link" data-act="openMachine" data-id="${esc(e.machine)}">${esc(e.machine)}</button><div class="sub">${esc(m?m.name:'')}</div></td><td>${statusBadge(e.type,e.type==='Planned'?'info':'crit')}</td><td><div>${esc(e.cause)}</div><div class="sub">${esc(e.desc||'')}</div></td><td class="r mono">${e.end?fDur(evMin(e)):statusBadge('Down '+fDur(evMin(e)),'crit')}</td><td class="mono">${esc(parts)||'<span class="sub">–</span>'}${e.blocked?`<div class="sub">Waiting: ${esc((pById(e.blocked)||{}).code||'')}</div>`:''}</td><td class="r" style="white-space:nowrap">${e.end?'':`<button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button> `}<button class="btn sm ghost" data-act="editEvent" data-id="${e.id}">Edit</button> <button class="btn sm ghost danger" data-act="deleteEvent" data-id="${e.id}" aria-label="Delete event">Delete</button></td></tr>`}).join('');
-  return `<div class="grid g-kpi">
+    return `<tr><td><div class="mono">${fDT(evStart(e))}</div><div class="sub">${esc(e.tech||'')}</div></td><td class="mono" style="white-space:nowrap">${esc(evShiftLabel(e))}${e.shiftEntry?'<div class="sub">by shift</div>':''}</td><td><button class="link" data-act="openMachine" data-id="${esc(e.machine)}">${esc(e.machine)}</button><div class="sub">${esc(m?m.name:'')}</div></td><td>${statusBadge(e.type,e.type==='Planned'?'info':'crit')}</td><td><div>${esc(e.cause)}</div><div class="sub">${esc(e.desc||'')}</div></td><td class="r mono">${e.end?fDur(evMin(e)):statusBadge('Down '+fDur(evMin(e)),'crit')}</td><td class="mono">${esc(parts)||'<span class="sub">–</span>'}${e.blocked?`<div class="sub">Waiting: ${esc((pById(e.blocked)||{}).code||'')}</div>`:''}</td><td class="r" style="white-space:nowrap">${e.end?'':`<button class="btn sm primary" data-act="resolveDowntime" data-id="${e.id}">Resolve</button> `}<button class="btn sm ghost" data-act="editEvent" data-id="${e.id}">Edit</button> <button class="btn sm ghost danger" data-act="deleteEvent" data-id="${e.id}" aria-label="Delete event">Delete</button></td></tr>`}).join('');
+  const shr={};S.shifts.forEach(x=>{shr[x.id]=0});evs.forEach(e=>evShiftSegs(e).forEach(g=>{if(g.id in shr)shr[g.id]+=g.ms/MIN}));
+  const shHtml=`<div class="card" style="margin-bottom:14px"><div class="card-b" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><b>Downtime by shift</b>${S.shifts.map(x=>`<span><span class="sub">${esc(shName(x.id))} (${esc(shRange(x))})</span> <b class="mono">${fDur(shr[x.id])}</b></span>`).join('')}<button class="link" data-act="editShifts">Edit shifts</button></div></div>`;
+  return shHtml+`<div class="grid g-kpi">
     ${kpi('Stops',evs.length,'',un.length+' unplanned, '+(evs.length-un.length)+' planned')}
     ${kpi('Unplanned',fHrs(sum(un)),'h','')}
     ${kpi('Planned',fHrs(sum(evs.filter(e=>e.type==='Planned'))),'h','')}
@@ -1135,7 +1179,7 @@ function dtResults(){
     <div class="card"><div class="card-h"><h2>By cause</h2></div><div class="card-b">${hbars(causes.map(([k,v])=>({l:k,v,t:fDur(v),c:PLANNED.includes(k)?'var(--plan)':'var(--crit)'})),causes[0]?causes[0][1]:1)}</div></div>
     <div class="card"><div class="card-h"><h2>By machine</h2><small>unplanned</small></div><div class="card-b">${hbars(ms.map(([k,v])=>({l:k+' '+((mById(k)||{}).name||'').replace(/ [A-Z]\d?$/,''),v,t:fDur(v),click:k})),ms[0]?ms[0][1]:1)}</div></div>
   </div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Stopped</th><th>Machine</th><th>Type</th><th>Cause</th><th class="r">Duration</th><th>Spares</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7"><div class="empty">No stops match these filters.</div></td></tr>'}</tbody></table></div></div>${evs.length>lim?`<div style="text-align:center;padding:14px"><button class="btn" data-act="moreEvents">Show more (${evs.length-lim} left)</button></div>`:''}`;
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Stopped</th><th>Shift</th><th>Machine</th><th>Type</th><th>Cause</th><th class="r">Duration</th><th>Spares</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="8"><div class="empty">No stops match these filters.</div></td></tr>'}</tbody></table></div></div>${evs.length>lim?`<div style="text-align:center;padding:14px"><button class="btn" data-act="moreEvents">Show more (${evs.length-lim} left)</button></div>`:''}`;
 }
 function hsFiltered(){
   const B=boundsFor(ui.hsRange,ui.hsMonth,ui.hsYear),from=ui.hsRange==='all'?-Infinity:B.from,to=ui.hsRange==='all'?Infinity:B.to,q=ui.hsQ.toLowerCase().trim();
@@ -1159,6 +1203,7 @@ function vDowntime(){
   return `${od}<div class="filters">
     ${periodPicker('dt')}
     <select data-f="dtLine" aria-label="Line"><option value="">All lines</option>${opts(S.lines.map(l=>[l.id,l.name]),ui.dtLine)}</select>
+    <select data-f="dtShift" aria-label="Shift"><option value="">All shifts</option>${S.shifts.map(x=>`<option value="${x.id}"${ui.dtShift===x.id?' selected':''}>${esc(shName(x.id))}</option>`).join('')}</select>
     <select data-f="dtType" aria-label="Type"><option value="">Planned and unplanned</option>${opts(['Unplanned','Planned'],ui.dtType)}</select>
     <input type="search" data-f="dtQ" placeholder="Search machine, cause, technician" value="${esc(ui.dtQ)}" aria-label="Search">
     <button class="btn danger" data-act="clearDowntime" title="Deletes every record matching the period and filters above">Delete these records</button></div>
@@ -1306,7 +1351,7 @@ function tables(){
    'Spare costs':[['Date','MRN','Dept code','Department','Item code','Description','Qty','Unit cost (LKR)','Cost (LKR)','Status','Machine','Line','Linked part']].concat(S.costs.map(c=>{const e=csEff(c),pp=costPart(c),ln=csLine(c);return [dayKey(c.t),c.mrn,c.dpt,c.dptName,c.itemCode,c.desc,(c.type==='return'?-1:1)*c.qty,c.unit,c.value,{new:'To assign',machine:'On machine',line:'Line common',auto:'Line common (auto)',removed:'Removed'}[e],e==='machine'?c.machine:'',ln?locName(ln):'',pp?pp.name:'']})),
    'Testing take-outs':[['Part','Code','Taken out','Returned or used','Result','Machine','By','Note','Round']].concat(S.trials.map(x=>{const p=pById(x.partId)||{};return [p.name||'',p.code||'',dayKey(x.out),x.end?dayKey(x.end):'',{out:'Still out',returned:'Returned unused',used:'Used'}[x.result],x.machine||'',x.by||'',x.note||'',x.chain+1]})),
    'Machines':[['Code','Name','Serial number','Line','Manufacturer','Status','Stops (90d)','Unplanned minutes (90d)']].concat(S.machines.map(m=>{const ev=range(90,0,e=>e.machine===m.id&&e.type==='Unplanned');return [m.id,m.name,m.serial||'',ln(m.id),m.maker||'',mStatus(m),ev.length,sum(ev)]})),
-   'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
+   'Downtime':[['Event ID','Machine','Machine name','Line','Type','Cause','Stopped','Back up','Duration (min)','Shift','Technician','Description','Spares used','Waiting for part']].concat(S.events.slice().sort((a,b)=>evStart(a)-evStart(b)).map(e=>[e.id,e.machine,mn(e.machine),ln(e.machine),e.type,e.cause,fFull(evStart(e)),e.end?fFull(Date.parse(e.end)):'Still down',evMin(e),evShiftLabel(e),e.tech||'',e.desc||'',(e.parts||[]).map(u=>u.qty+'x '+pc(u.partId)).join(', '),e.blocked?pc(e.blocked):''])),
    'Stock movements':[['Date','Stores code','Part','Type','Quantity','Machine','Reference','By']].concat(S.txns.slice().sort((a,b)=>a.t-b.t).map(t=>[fFull(t.t),pc(t.partId),pn(t.partId),t.type,t.qty,t.machine||'',t.ref||'',t.by||''])),
    'Monthly summary':[['Month','Stops','Unplanned hours','Planned hours','Average repair (min)','Availability %','Spares issued (LKR)','Purchases (LKR)','Repair spend (LKR)']].concat((function(){const out=[],now=new Date(),t0=Math.min(NOW(),...S.events.map(evStart),...S.pos.map(o=>o.date));let d=new Date(new Date(t0).getFullYear(),new Date(t0).getMonth(),1);for(;d<=now;d=new Date(d.getFullYear(),d.getMonth()+1,1)){const b=bucketStats(d.getTime(),new Date(d.getFullYear(),d.getMonth()+1,1).getTime());out.push([d.getFullYear()+'-'+p2(d.getMonth()+1),b.n,+(b.un/60).toFixed(1),+(b.pl/60).toFixed(1),Math.round(b.mttr),b.avail==null?'':+(b.avail*100).toFixed(2),Math.round(b.issued),Math.round(b.bought),Math.round(b.rep)])}return out})()),
    'Assets':[['Serial','Stores code','Part','Status','Fitted to','Location','Installed','Warranty until']].concat(S.assets.map(a=>[a.serial,pc(a.part),pn(a.part),a.status,a.machine||'',a.loc||'',a.installed?fFull(a.installed).slice(0,10):'',a.warranty?fFull(a.warranty).slice(0,10):''])),
@@ -1375,6 +1420,7 @@ function vSettings(){
     <p class="sub" style="color:var(--muted);font-size:12.5px;margin-bottom:0">Anyone who has both your URL and anon key can read and edit this data. Keep them private. Connecting for the first time uploads what you see now, or loads what is already in the cloud.</p>
   </div></div>
   <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card"><div class="card-h"><h2>Shifts</h2></div><div class="card-b"><p style="margin-top:0;color:var(--muted)">Used to work out which shift each breakdown fell in, and for the shift tables on Downtime and Reports.</p>${S.shifts.map(x=>`<div class="sub"><b>${esc(shName(x.id))}</b> · <span class="mono">${esc(shRange(x))}</span></div>`).join('')}<button class="btn" data-act="editShifts" style="margin-top:10px">Edit shifts</button></div></div>
     <div class="card"><div class="card-h"><h2>Logo</h2></div><div class="card-b">
       <p style="margin-top:0;color:var(--muted)">Upload your company logo (PNG, JPG or SVG). It shows at the top left and is saved with your data, so it syncs to every device.</p>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${S.brand&&S.brand.logo?`<img alt="Current logo" src="${S.brand.logo}" style="height:40px;max-width:140px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:3px;background:#fff">`:''}
@@ -1421,6 +1467,7 @@ const ACT={
  openMachine:b=>{closeModal();openDrawer(machineDrawer(b.dataset.id))},
  openPart:b=>openDrawer(partDrawer(b.dataset.id)),
  trialOut:b=>trialOutForm(b.dataset.id),trialReturn:b=>trialReturnForm(b.dataset.id),trialUse:b=>trialUseForm(b.dataset.id),
+ editShifts:()=>shiftForm(),
  csImport:()=>{const f=$('#costFile');if(f)f.click()},csDepts:()=>costDeptForm(),csLink:b=>csLinkForm(b.dataset.id),csMore:()=>{ui.csLimit=(ui.csLimit||100)+100;csRefresh()},
  csFlag:b=>{ui.csFlag=ui.csFlag===b.dataset.v?'':b.dataset.v;if(ui.csFlag&&ui.csStatus==='new'){}csRefresh()},csClearSel:()=>{ui.csSel={};csRefresh()},
  csBulkApply:()=>{const v=($('#csBulk')||{}).value,ids=Object.keys(ui.csSel||{}).filter(k=>ui.csSel[k]);if(!v){toast('Choose where to assign the selected lines');return}assignCost(ids,v)},
