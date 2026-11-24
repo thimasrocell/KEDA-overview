@@ -606,6 +606,70 @@ function shiftReport(from,to,scope){
   const tot=Object.values(rows).reduce((a,r)=>a+r.min,0);
   return `<div class="card"><div class="card-h"><h2>Downtime by shift</h2><small>${esc(scope)} · <button class="link" data-act="editShifts">Edit shifts</button></small></div><div class="tbl-wrap"><table><thead><tr><th>Shift</th><th>Hours</th><th class="r">Stops</th><th class="r">Downtime</th><th class="r">Unplanned</th><th class="r">Share</th></tr></thead><tbody>${S.shifts.map(s=>{const r=rows[s.id];return `<tr><td class="name">${esc(shName(s.id))}</td><td class="mono">${esc(shRange(s))}</td><td class="r mono">${r.n}</td><td class="r mono">${fDur(r.min)}</td><td class="r mono">${fDur(r.un)}</td><td class="r mono">${tot?Math.round(r.min/tot*100)+'%':'–'}</td></tr>`}).join('')}</tbody></table></div></div>`}
 
+/* ---------- read shift reports pasted from a chat (rule-based, runs in the browser) ---------- */
+let chatCands=[];
+function chatMessages(text,dmy){
+  const re=/^\[?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4}),?\s+(\d{1,2})[:.](\d{2})(?::\d{2})?\s*([ap])?\.?m?\.?\s*\]?\s*[-–]?\s*([^:]{1,40}?):\s*(.*)$/i,msgs=[];let cur=null;
+  text.replace(/‎|‏/g,'').split(/\r?\n/).forEach(line=>{const m=re.exec(line);
+    if(m){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;const dd=dmy?a:b,mo=dmy?b:a;let h=+m[4];if(m[6]){const pm=/p/i.test(m[6]);if(pm&&h<12)h+=12;if(!pm&&h===12)h=0}
+      const t=new Date(y,mo-1,dd,h,+m[5]).getTime();cur={t:isNaN(t)?null:t,who:m[7].trim(),lines:[m[8]]};msgs.push(cur)}
+    else if(cur&&line.trim())cur.lines.push(line);else if(!cur&&line.trim()){cur={t:null,who:'',lines:[line]};msgs.push(cur)}});
+  return msgs}
+function chatShiftIn(line){let r=null;S.shifts.forEach(s=>{const nm=(s.name||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),re=new RegExp('\\b(shift\\s*'+s.id+'|'+s.id+'\\s*shift'+(nm?'|'+nm:'')+')\\b','i');if(!r&&re.test(line))r=s.id});
+  if(!r){const m=/\bshift\s*([1-4])\b/i.exec(line);if(m&&S.shifts[+m[1]-1])r=S.shifts[+m[1]-1].id}return r}
+function chatPostShift(t){if(!t)return null;const ins=shInstances(t-8*3600000,t+1).filter(x=>x.b<=t+45*MIN).sort((a,b)=>b.b-a.b);return ins.length?{id:ins[0].s.id,date:ins[0].date}:null}
+function chatMachine(line){const m=/\b([A-Za-z]{1,3}\d?)\s?-\s?(\d{1,2})\b/.exec(line);if(m){const id=m[1].toUpperCase()+'-'+p2(+m[2]);if(mById(id))return {id,tok:m[0]}}
+  const low=line.toLowerCase(),hit=S.machines.filter(x=>low.indexOf(x.name.toLowerCase())>=0);return hit.length===1?{id:hit[0].id,tok:hit[0].name}:null}
+function chatTimes(line){let out={};const r=/(\d{1,2})[:.](\d{2})\s*(?:-|–|—|to|till|until)\s*(\d{1,2})[:.](\d{2})/i.exec(line);
+  if(r&&+r[1]<24&&+r[3]<24&&+r[2]<60&&+r[4]<60){out.a=+r[1]*60+ +r[2];out.b=+r[3]*60+ +r[4];out.tok=r[0];return out}
+  let m=/(\d+)\s*h(?:rs?|ours?)?\s*(\d+)\s*m(?:in(?:s|utes)?)?/i.exec(line);if(m){out.min=+m[1]*60+ +m[2];out.tok=m[0];return out}
+  m=/(\d+(?:\.\d+)?)\s*(?:hrs?|hours?|h)\b/i.exec(line);if(m){out.min=Math.round(+m[1]*60);out.tok=m[0];return out}
+  m=/(\d+)\s*(?:mins?|minutes?)\b/i.exec(line);if(m){out.min=+m[1];out.tok=m[0];return out}return null}
+function parseChat(text,o){
+  const msgs=chatMessages(text,o.dmy),cands=[],skipped=[];
+  msgs.forEach(msg=>{let ps=o.shift==='auto'?chatPostShift(msg.t):null,sid=o.shift==='auto'?(ps?ps.id:null):o.shift,sdate=ps?ps.date:(msg.t?dayKey(msg.t):o.date);
+    let cur={id:sid,date:sdate};
+    msg.lines.join('\n').split(/\n|;/).forEach(raw=>{const line=raw.trim();if(!line)return;
+      const ls=chatShiftIn(line);if(ls){cur={id:ls,date:cur.date}}
+      const mc=chatMachine(line),tm=chatTimes(line);
+      if(!tm){if(mc)skipped.push(line);return}
+      let cause=line;[mc&&mc.tok,tm.tok].forEach(t=>{if(t)cause=cause.replace(t,' ')});cause=cause.replace(/\b(shift\s*[A-D1-4]|[A-D]\s*shift)\b/ig,' ').replace(/^[\s\-–:,.()]+|[\s\-–:,.()]+$/g,'').replace(/\s{2,}/g,' ');
+      const c={mid:mc?mc.id:'',sid:cur.id||(S.shifts[0]||{}).id,date:cur.date,type:/\b(planned|pm|changeover|cleaning|lubrication)\b/i.test(line)&&!/unplanned/i.test(line)?'Planned':'Unplanned',cause:cause.slice(0,80),src:line.slice(0,140)};
+      if(tm.a!=null){const s0=shiftStart(c.date,c.sid);if(!isNaN(s0)){const sh=shById(c.sid),L=shLen(sh)*MIN,d0=new Date(c.date+'T00:00:00').getTime();let st=d0+tm.a*MIN;if(st<s0)st+=DAY;if(st>s0+L)st-=DAY;
+          let en=d0+tm.b*MIN;while(en<=st)en+=DAY;if(Math.abs(en-st)>DAY)en=st+((tm.b-tm.a+1440)%1440)*MIN;c.start=st;c.end=en;c.min=Math.round((en-st)/MIN)}}
+      else c.min=tm.min;
+      if(c.min>0)cands.push(c)})});
+  cands.forEach(c=>{const st=c.start||shiftStart(c.date,c.sid);c.dup=S.events.some(e=>e.machine===c.mid&&(c.start?Math.abs(evStart(e)-c.start)<=MIN:(e.shiftEntry&&e.shift===c.sid&&e.shiftDate===c.date&&Math.round(evMin(e))===c.min)))});
+  return {cands,skipped,total:msgs.length}}
+function chatRows(){
+  return `<table><thead><tr><th></th><th>Date</th><th>Shift</th><th>Machine</th><th class="r">Minutes</th><th>Type</th><th>Cause</th></tr></thead><tbody>${chatCands.map((c,i)=>`<tr${c.dup?' style="opacity:.55"':''}><td><input type="checkbox" name="ck_${i}" ${c.dup||!c.mid?'':'checked'} aria-label="Import"></td><td><input type="date" name="d_${i}" value="${c.date}" style="width:140px"></td><td><select name="s_${i}">${S.shifts.map(x=>`<option value="${x.id}"${x.id===c.sid?' selected':''}>${esc(shName(x.id))}</option>`).join('')}</select></td><td><select name="m_${i}"><option value="">Choose…</option>${machOpts(c.mid)}</select></td><td class="r"><input type="number" min="1" name="n_${i}" value="${c.min}" style="width:78px"></td><td><select name="t_${i}">${opts(['Unplanned','Planned'],c.type)}</select></td><td><input name="c_${i}" value="${esc(c.cause)}" style="min-width:140px"><div class="sub">${c.dup?'Already in the app. ':''}${esc(c.src)}</div></td></tr>`).join('')}</tbody></table>`}
+function chatReadNow(){
+  const f=$('#modalLayer form')||document,txt=($('#f_chat',f)||{}).value||'',out=$('#chatOut',f);if(!out)return;
+  if(!txt.trim()){out.innerHTML='<div class="sub">Paste the chat text first.</div>';return}
+  const o={dmy:$('#f_dmy',f).value==='dmy',shift:$('#f_ds',f).value,date:$('#f_dd',f).value||dayKey(NOW())},r=parseChat(txt,o);chatCands=r.cands;
+  out.innerHTML=(r.cands.length?`<div class="sub" style="margin:6px 0">Read ${r.total} message${r.total===1?'':'s'} and found ${r.cands.length} breakdown${r.cands.length===1?'':'s'}. Check each row, fix anything wrong, then import the ticked ones.</div><div class="tbl-wrap">${chatRows()}</div>`:'<div class="sub">No breakdown times found. Lines need a machine code (like K2-03) and either a time range (14:10-14:50) or minutes (40 min).</div>')+(r.skipped.length?`<details style="margin-top:8px"><summary>${r.skipped.length} line${r.skipped.length===1?'':'s'} mention a machine but have no time</summary>${r.skipped.slice(0,30).map(l=>`<div class="sub">${esc(l)}</div>`).join('')}</details>`:'')}
+function chatImportForm(){
+  const f=modal('Read shift reports from pasted chat',`
+    <div class="field full"><div class="sub">This runs only in your browser and does not use AI. The pasted text is not saved. Only the rows you import become records.</div></div>
+    <div class="field full"><label for="f_chat">Paste the messages</label><textarea id="f_chat" rows="8" placeholder="Paste the chat here, copied from WhatsApp"></textarea></div>
+    <div class="field"><label for="f_dmy">Dates in the chat are</label><select id="f_dmy"><option value="dmy">Day / month / year</option><option value="mdy">Month / day / year</option></select></div>
+    <div class="field"><label for="f_ds">Shift for each message</label><select id="f_ds"><option value="auto">Work it out from the time posted</option>${S.shifts.map(x=>`<option value="${x.id}">Always ${esc(shName(x.id))}</option>`).join('')}</select></div>
+    <div class="field"><label for="f_dd">Date if a line has none</label><input id="f_dd" type="date" value="${dayKey(NOW())}"></div>
+    <div class="field" style="align-self:end"><button type="button" class="btn primary" data-act="chatRead">Read messages</button></div>
+    <div class="field full" id="chatOut"></div>`,fd=>{
+    if(!chatCands.length)return 'Press Read messages first.';
+    const made=[];let bad=0;
+    chatCands.forEach((c,i)=>{if(!fd.get('ck_'+i))return;const mid=fd.get('m_'+i),min=parseInt(fd.get('n_'+i))||0,sid=fd.get('s_'+i),date=fd.get('d_'+i);
+      if(!mid||!(min>0)||!date||!shById(sid)){bad++;return}
+      const e={id:newId('dt'),machine:mid,type:fd.get('t_'+i),cause:(fd.get('c_'+i)||'').trim()||'Reported in shift chat',desc:'',tech:'',parts:[],src:'chat'};
+      if(c.start&&c.sid===sid&&c.date===date){e.start=new Date(c.start).toISOString();e.end=new Date(c.start+min*MIN).toISOString()}
+      else{const st=shiftStart(date,sid);if(isNaN(st)){bad++;return}if(min>shLen(shById(sid))){bad++;return}e.start=new Date(st).toISOString();e.end=new Date(st+min*MIN).toISOString();e.shift=sid;e.shiftDate=date;e.shiftEntry=true}
+      made.push(e)});
+    if(bad)return bad+' ticked row'+(bad>1?'s need':' needs')+' a machine, date, shift and minutes (no more than the shift length).';
+    if(!made.length)return 'Tick at least one row.';
+    made.forEach(e=>S.events.push(e));chatCands=[];commit();toast('Imported '+made.length+' downtime record'+(made.length>1?'s':''))},{submit:'Import ticked rows'});
+  chatCands=[]}
+
 /* ---------- undo / redo ---------- */
 let undoStack=[],redoStack=[],lastSnap=null,pendingLabel=false;
 function snap(){const o=Object.assign({},S);delete o.rev;delete o.dirty;return JSON.stringify(o)}
@@ -1206,6 +1270,7 @@ function vDowntime(){
     <select data-f="dtShift" aria-label="Shift"><option value="">All shifts</option>${S.shifts.map(x=>`<option value="${x.id}"${ui.dtShift===x.id?' selected':''}>${esc(shName(x.id))}</option>`).join('')}</select>
     <select data-f="dtType" aria-label="Type"><option value="">Planned and unplanned</option>${opts(['Unplanned','Planned'],ui.dtType)}</select>
     <input type="search" data-f="dtQ" placeholder="Search machine, cause, technician" value="${esc(ui.dtQ)}" aria-label="Search">
+    <button class="btn" data-act="chatImport">Paste shift reports</button>
     <button class="btn danger" data-act="clearDowntime" title="Deletes every record matching the period and filters above">Delete these records</button></div>
     <div id="results">${dtResults()}</div>`;
 }
@@ -1467,7 +1532,7 @@ const ACT={
  openMachine:b=>{closeModal();openDrawer(machineDrawer(b.dataset.id))},
  openPart:b=>openDrawer(partDrawer(b.dataset.id)),
  trialOut:b=>trialOutForm(b.dataset.id),trialReturn:b=>trialReturnForm(b.dataset.id),trialUse:b=>trialUseForm(b.dataset.id),
- editShifts:()=>shiftForm(),
+ editShifts:()=>shiftForm(),chatImport:()=>chatImportForm(),chatRead:()=>chatReadNow(),
  csImport:()=>{const f=$('#costFile');if(f)f.click()},csDepts:()=>costDeptForm(),csLink:b=>csLinkForm(b.dataset.id),csMore:()=>{ui.csLimit=(ui.csLimit||100)+100;csRefresh()},
  csFlag:b=>{ui.csFlag=ui.csFlag===b.dataset.v?'':b.dataset.v;if(ui.csFlag&&ui.csStatus==='new'){}csRefresh()},csClearSel:()=>{ui.csSel={};csRefresh()},
  csBulkApply:()=>{const v=($('#csBulk')||{}).value,ids=Object.keys(ui.csSel||{}).filter(k=>ui.csSel[k]);if(!v){toast('Choose where to assign the selected lines');return}assignCost(ids,v)},
