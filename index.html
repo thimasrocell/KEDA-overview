@@ -646,6 +646,7 @@ function chatRows(){
 function chatReadNow(){
   const f=$('#modalLayer form')||document,txt=($('#f_chat',f)||{}).value||'',out=$('#chatOut',f);if(!out)return;
   if(!txt.trim()){out.innerHTML='<div class="sub">Paste the chat text first.</div>';return}
+  if(/^\s*[^\n]+?\s*[-–]\s*[\d.,]+\s*sqm\s*$/im.test(txt)&&/stoppages?/i.test(txt)){const dm=$('#f_dmy',f).value;closeModal();lpImportForm();const g=$('#modalLayer form');$('#f_lp',g).value=txt;$('#f_dmy',g).value=dm;lpReadNow();toast('This looks like a line production report, so it was opened in Line performance');return}
   const o={dmy:$('#f_dmy',f).value==='dmy',shift:$('#f_ds',f).value,date:$('#f_dd',f).value||dayKey(NOW())},r=parseChat(txt,o);chatCands=r.cands;
   out.innerHTML=(r.cands.length?`<div class="sub" style="margin:6px 0">Read ${r.total} message${r.total===1?'':'s'} and found ${r.cands.length} breakdown${r.cands.length===1?'':'s'}. Check each row, fix anything wrong, then import the ticked ones.</div><div class="tbl-wrap">${chatRows()}</div>`:'<div class="sub">No breakdown times found. Lines need a machine code (like K2-03) and either a time range (14:10-14:50) or minutes (40 min).</div>')+(r.skipped.length?`<details style="margin-top:8px"><summary>${r.skipped.length} line${r.skipped.length===1?'':'s'} mention a machine but have no time</summary>${r.skipped.slice(0,30).map(l=>`<div class="sub">${esc(l)}</div>`).join('')}</details>`:'')}
 function chatImportForm(){
@@ -741,7 +742,7 @@ function lpImportForm(){
       const stops=[];(b.stops||[]).forEach((s,j)=>{if(!fd.get('sk_'+i+'_'+j))return;const mn=fd.get('sm_'+i+'_'+j);stops.push({text:(fd.get('st_'+i+'_'+j)||s.text).trim(),min:mn===''||mn==null?0:Math.max(0,parseInt(mn)||0),cat:fd.get('sc_'+i+'_'+j)||s.cat})});
       made.push({id:newId('sr'),line:ln,date,shift:sid,posted:b.posted||null,sqm:Math.max(0,parseInt(fd.get('rq_'+i))||0),prod:b.prod,stops,src:'chat',at:NOW()})});
     if(bad)return bad;if(!made.length)return 'Tick at least one report.';
-    Object.values(newLines).forEach(l=>S.lines.push(l));made.forEach(r=>S.shiftReports.push(r));lpCands=[];commit();toast('Imported '+made.length+' line report'+(made.length>1?'s':'')+(Object.keys(newLines).length?' and added '+Object.keys(newLines).length+' new line'+(Object.keys(newLines).length>1?'s':''):''))},{submit:'Import ticked reports'});lpCands=[]}
+    Object.values(newLines).forEach(l=>S.lines.push(l));made.forEach(r=>S.shiftReports.push(r));lpCands=[];ui.view='lineperf';commit();toast('Imported '+made.length+' line report'+(made.length>1?'s':'')+(Object.keys(newLines).length?' and added '+Object.keys(newLines).length+' new line'+(Object.keys(newLines).length>1?'s':''):''))},{submit:'Import ticked reports'});lpCands=[]}
 function lpStats(rs){
   const o={mach:{},line:0,pend:0,n:rs.length,sched:0,bd:0,pw:0,co:0,br:0,sqm:0,ys:0,yw:0,nb:0,nco:0,items:{}};
   rs.forEach(r=>{const sh=shById(r.shift);o.sched+=sh?shLen(sh):480;o.sqm+=r.sqm||0;(r.prod||[]).forEach(p=>{const w=p.sqm||0;if(w){o.ys+=p.yield*w;o.yw+=w}});
